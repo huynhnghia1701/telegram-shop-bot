@@ -3,10 +3,13 @@ const topupService = require('../services/topupService');
 const userService = require('../services/userService');
 const messages = require('../utils/messages');
 const { formatPrice } = require('../utils/keyboard');
+const { Markup } = require('telegraf');
 
 module.exports = (bot) => {
-    bot.command('nap', (ctx) => {
+    bot.command('nap', async (ctx) => {
         const text = ctx.message.text.split(' ');
+        
+        // Kiểm tra cú pháp
         if (text.length < 2 || isNaN(text[1])) {
             return ctx.replyWithHTML(
                 '💰 <b>NẠP SỐ DƯ</b>\n\n' +
@@ -21,21 +24,30 @@ module.exports = (bot) => {
             return ctx.reply('❌ Số tiền tối thiểu là 10.000đ');
         }
 
-        userService.findOrCreate(ctx.from);
+        try {
+            // 1. Tạo user nếu chưa có
+            userService.findOrCreate(ctx.from);
 
-        const payment = paymentService.generatePayment(amount);
-        topupService.create(ctx.from.id, amount, payment.paymentCode);
+            // 2. Tạo thông tin thanh toán
+            const payment = paymentService.generatePayment(amount);
+            topupService.create(ctx.from.id, amount, payment.paymentCode);
 
-        // Send QR image
-        ctx.replyWithPhoto(payment.qrUrl, {
-            caption:
+            // 3. Nội dung tin nhắn
+            const caption =
                 `💰 <b>NẠP SỐ DƯ</b>\n\n` +
-                `Quét mã QR để nạp ${formatPrice(amount)} vào tài khoản.\n\n` +
-                `🏦 Quét mã QR để chuyển khoản\n` +
+                `Quét mã QR hoặc bấm vào link dưới đây để chuyển khoản:\n` +
+                `👉 <a href="${payment.qrUrl}">BẤM VÀO ĐÂY ĐỂ LẤY MÃ QR</a>\n\n` +
+                `🏦 Thông tin chuyển khoản\n` +
                 `├ Số tiền: <b>${formatPrice(amount)}</b>\n` +
                 `└ Nội dung CK: <code>${payment.paymentCode}</code>\n\n` +
-                `⏳ Sau khi chuyển khoản, số dư sẽ được cập nhật tự động.`,
-            parse_mode: 'HTML',
-        });
+                `⏳ Sau khi chuyển khoản, số dư sẽ được cập nhật tự động.`;
+
+            // 4. Gửi dạng tin nhắn HTML (Kèm link QR) để tránh lỗi tải ảnh
+            await ctx.replyWithHTML(caption);
+            
+        } catch (err) {
+            console.error('❌ Lỗi tạo nạp tiền:', err.message);
+            ctx.reply('❌ Có lỗi xảy ra khi tạo yêu cầu nạp tiền. Vui lòng thử lại sau.');
+        }
     });
 };
