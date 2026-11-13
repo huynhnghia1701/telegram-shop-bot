@@ -72,8 +72,14 @@ module.exports = (bot) => {
     // ════════════════════════════════════
     // Shared: Create order + send QR + notify admin
     // ════════════════════════════════════
-    async function createOrderAndPay(ctx, bot, product, quantity, bankIndex) {
-        userService.findOrCreate(ctx.from);
+   async function createOrderAndPay(ctx, bot, product, quantity, bankIndex) {
+        try {
+            // 1. Kiểm tra và tạo user (Bọc trong try/catch để bắt lỗi DB)
+            userService.findOrCreate(ctx.from);
+        } catch (err) {
+            console.error('❌ Lỗi tạo user:', err.message);
+            return ctx.reply('❌ Có lỗi xảy ra khi tạo tài khoản. Vui lòng thử lại sau.');
+        }
 
         const totalPrice = product.price * quantity;
         const payment = paymentService.generatePayment(totalPrice, bankIndex);
@@ -85,6 +91,59 @@ module.exports = (bot) => {
             totalPrice,
             payment.paymentCode
         );
+
+        // 2. Gửi tin nhắn thanh toán
+        const caption =
+            `⏳ <b>Đang chờ thanh toán ${formatPrice(totalPrice)}...</b>\n\n` +
+            `Quét mã QR hoặc bấm vào link dưới đây để chuyển khoản:\n` +
+            `👉 <a href="${payment.qrUrl}">BẤM VÀO ĐÂY ĐỂ LẤY MÃ QR</a>\n\n` +
+            `💰 <b>THANH TOÁN ĐƠN HÀNG</b>\n\n` +
+            `📦 Sản phẩm: ${product.name}\n` +
+            `📊 Số lượng: ${quantity}\n` +
+            `💵 Tổng tiền: <b>${formatPrice(totalPrice)}</b>\n\n` +
+            `━━━━━━━━━━━━━━━━━\n\n` +
+            `🏦 Quét mã QR để chuyển khoản\n` +
+            `├ Số tiền: <b>${formatPrice(totalPrice)}</b>\n` +
+            `└ Nội dung CK: <code>${payment.paymentCode}</code>\n\n` +
+            `⏰ QR hiệu lực trong <b>15 phút</b>\n` +
+            `🚫 <b>KHÔNG</b> thay đổi nội dung chuyển khoản\n` +
+            `✅ Sau khi CK thành công, hàng sẽ được giao <b>tự động</b> trong vòng dưới 60 giây`;
+
+        // Gửi dạng tin nhắn HTML (Kèm link QR) để tránh lỗi Telegram không tải được ảnh
+        await ctx.replyWithHTML(caption, Markup.inlineKeyboard([
+            [Markup.button.callback('❌ Hủy thanh toán', `cancel_order_${order.id}`)],
+        ]));
+
+        // 3. Thông báo cho Admin
+        const userName = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ');
+        const adminMsg =
+            `🔔 <b>ĐƠN HÀNG MỚI #${order.id}</b>\n\n` +
+            `👤 Khách: <b>${userName}</b> (<code>${ctx.from.id}</code>)\n` +
+            (ctx.from.username ? `📱 @${ctx.from.username}\n` : '') +
+            `\n` +
+            `📦 Sản phẩm: <b>${product.name}</b>\n` +
+            `📊 Số lượng: ${quantity}\n` +
+            `💰 Tổng tiền: <b>${formatPrice(totalPrice)}</b>\n` +
+            `🏦 Bank: <b>${payment.bankName}</b>\n` +
+            `🔑 Mã CK: <code>${payment.paymentCode}</code>\n\n` +
+            `━━━━━━━━━━━━━━━━━\n` +
+            `✅ Xác nhận & giao hàng:\n` +
+            `<code>/confirm ${order.id}</code>`;
+
+        try {
+            await bot.telegram.sendMessage(config.ADMIN_ID, adminMsg, {
+                parse_mode: 'HTML',
+                ...Markup.inlineKeyboard([
+                    [
+                        Markup.button.callback(`✅ Xác nhận #${order.id}`, `admin_confirm_${order.id}`),
+                        Markup.button.callback(`❌ Hủy #${order.id}`, `admin_cancel_${order.id}`),
+                    ],
+                ]),
+            });
+        } catch (err) {
+            console.error('Failed to notify admin:', err.message);
+        }
+    }
 
         // 1. Send QR code to customer
         const caption =
