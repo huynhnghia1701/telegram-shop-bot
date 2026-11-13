@@ -30,10 +30,6 @@ module.exports = (bot) => {
     bot.command('admin', adminOnly, (ctx) => {
         const stats = orderService.getStats();
         ctx.replyWithHTML(
-            `👥 <b>QUẢN LÝ USER:</b>\n` +
-            `/users — Xem danh sách users\n` +
-            `/setbalance [ID] [tiền] — Đặt lại số dư\n` +
-            `/addbalance [ID] [tiền] — Cộng/trừ số dư\n\n` +
             `🔧 <b>ADMIN PANEL — ${config.SHOP_NAME}</b>\n\n` +
             `📊 <b>Thống kê nhanh:</b>\n` +
             `├ 👥 Users: ${stats.totalUsers}\n` +
@@ -42,6 +38,10 @@ module.exports = (bot) => {
             `├ ⏳ Đơn chờ: ${stats.pendingOrders}\n` +
             `└ 🏪 Tồn kho: ${stats.totalStock}\n\n` +
             `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `👥 <b>QUẢN LÝ USER & SỐ DƯ:</b>\n` +
+            `/users — Xem danh sách users\n` +
+            `/setbalance [ID] [tiền] — Đặt lại số dư\n` +
+            `/addbalance [ID] [tiền] — Cộng/trừ số dư\n\n` +
             `📦 <b>QUẢN LÝ SẢN PHẨM:</b>\n` +
             `/listproduct — Xem tất cả sản phẩm\n` +
             `/addproduct — Thêm sản phẩm mới\n` +
@@ -64,7 +64,6 @@ module.exports = (bot) => {
             `📊 <b>GOOGLE SHEET & KHÁC:</b>\n` +
             `/sync — 🔄 Đồng bộ sản phẩm từ Google Sheet\n` +
             `/stats — Thống kê chi tiết\n` +
-            `/users — Xem danh sách users\n` +
             `/broadcast — Gửi thông báo tới all users`,
             Markup.inlineKeyboard([
                 [Markup.button.callback('📦 Sản phẩm', 'adm_products'), Markup.button.callback('⏳ Đơn chờ', 'adm_pending')],
