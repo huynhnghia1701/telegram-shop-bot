@@ -1,16 +1,5 @@
 const db = require('../database');
-// File: services/userService.js
-const db = require('../database');
 
-// Hàm lấy user (nếu chưa có)
-exports.getUser = (telegramId) => {
-    return db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(telegramId);
-};
-
-// Hàm cập nhật số dư (nếu chưa có)
-exports.updateBalance = (telegramId, newBalance) => {
-    return db.prepare('UPDATE users SET balance = ? WHERE telegram_id = ?').run(newBalance, telegramId);
-};
 const userService = {
     /**
      * Find or create user
@@ -34,15 +23,20 @@ const userService = {
         return db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(telegramId);
     },
 
+    // Bổ sung hàm getUser để adminActions.js có thể gọi
+    getUser(telegramId) {
+        return this.get(telegramId);
+    },
+
     /**
-     * Update balance
+     * Update balance (Cộng tiền)
      */
     addBalance(telegramId, amount) {
         db.prepare('UPDATE users SET balance = balance + ? WHERE telegram_id = ?').run(amount, telegramId);
     },
 
     /**
-     * Deduct balance
+     * Deduct balance (Trừ tiền)
      */
     deductBalance(telegramId, amount) {
         const user = this.get(telegramId);
@@ -50,6 +44,11 @@ const userService = {
         db.prepare('UPDATE users SET balance = balance - ? WHERE telegram_id = ?').run(amount, telegramId);
         return true;
     },
+
+    // Bổ sung hàm updateBalance để adminActions.js có thể gọi
+    updateBalance(telegramId, newBalance) {
+        db.prepare('UPDATE users SET balance = ? WHERE telegram_id = ?').run(newBalance, telegramId);
+    }
 };
 
 module.exports = userService;
