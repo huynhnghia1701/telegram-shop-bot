@@ -30,6 +30,10 @@ module.exports = (bot) => {
     bot.command('admin', adminOnly, (ctx) => {
         const stats = orderService.getStats();
         ctx.replyWithHTML(
+            `👥 <b>QUẢN LÝ USER & SỐ DƯ:</b>\n` +
+            `/users — Xem danh sách users\n` +
+            `/setbalance [ID] [tiền] — Đặt lại số dư\n` +
+            `/addbalance [ID] [tiền] — Cộng/trừ số dư\n\n` +
             `🔧 <b>ADMIN PANEL — ${config.SHOP_NAME}</b>\n\n` +
             `📊 <b>Thống kê nhanh:</b>\n` +
             `├ 👥 Users: ${stats.totalUsers}\n` +
@@ -405,13 +409,95 @@ module.exports = (bot) => {
             `✅ QR VietQR thanh toán sử dụng thông tin trên.`
         );
     });
+// ═══════════════════════════════════════
+    // QUẢN LÝ SỐ DƯ USER (MỚI THÊM)
+    // ═══════════════════════════════════════
 
+    // /setbalance [user_id] [số_tiền] - Set số dư chính xác
+    bot.command('setbalance', adminOnly, (ctx) => {
+        const args = ctx.message.text.split(' ');
+        if (args.length < 3) {
+            return ctx.replyWithHTML(
+                `💰 <b>SET SỐ DƯ USER</b>\n\n` +
+                `Cách dùng: <code>/setbalance [user_id] [số_tiền]</code>\n` +
+                `Ví dụ: <code>/setbalance 123456789 50000</code> (Đặt số dư thành 50.000đ)`
+            );
+        }
+
+        const userId = parseInt(args[1]);
+        const amount = parseInt(args[2]);
+
+        if (isNaN(userId) || isNaN(amount) || amount < 0) {
+            return ctx.reply('❌ User ID hoặc số tiền không hợp lệ.');
+        }
+
+        const user = userService.getUser(userId);
+        if (!user) return ctx.reply('❌ Không tìm thấy user này trong hệ thống.');
+
+        const oldBalance = user.balance;
+        userService.updateBalance(userId, amount);
+        
+        // (Tùy chọn) Ghi log nếu bạn có module logger
+        // logger.log(`Admin ${ctx.from.id} set balance user ${userId} thành ${amount}`);
+
+        ctx.replyWithHTML(
+            `✅ <b>ĐÃ CẬP NHẬT SỐ DƯ</b>\n\n` +
+            `👤 User: <b>${user.full_name}</b> (<code>${userId}</code>)\n` +
+            `💰 Số dư cũ: ${formatPrice(oldBalance)}\n` +
+            `💰 Số dư mới: <b>${formatPrice(amount)}</b>`
+        );
+
+        // (Tùy chọn) Báo cho user biết
+        bot.telegram.sendMessage(userId, `💰 Số dư tài khoản của bạn đã được Admin cập nhật thành: <b>${formatPrice(amount)}</b>`, { parse_mode: 'HTML' }).catch(() => {});
+    });
+
+    // /addbalance [user_id] [số_tiền] - Cộng/Trừ tiền
+    bot.command('addbalance', adminOnly, (ctx) => {
+        const args = ctx.message.text.split(' ');
+        if (args.length < 3) {
+            return ctx.replyWithHTML(
+                `💸 <b>CỘNG/TRỪ SỐ DƯ USER</b>\n\n` +
+                `Cách dùng: <code>/addbalance [user_id] [số_tiền]</code>\n` +
+                `Ví dụ cộng: <code>/addbalance 123456789 50000</code>\n` +
+                `Ví dụ trừ: <code>/addbalance 123456789 -20000</code>`
+            );
+        }
+
+        const userId = parseInt(args[1]);
+        const amount = parseInt(args[2]); // Có thể là số âm
+
+        if (isNaN(userId) || isNaN(amount)) {
+            return ctx.reply('❌ User ID hoặc số tiền không hợp lệ.');
+        }
+
+        const user = userService.getUser(userId);
+        if (!user) return ctx.reply('❌ Không tìm thấy user này trong hệ thống.');
+
+        const newBalance = user.balance + amount;
+        if (newBalance < 0) {
+            return ctx.reply(`❌ Số dư không đủ để trừ. Số dư hiện tại: ${formatPrice(user.balance)}`);
+        }
+
+        userService.updateBalance(userId, newBalance);
+
+        const action = amount > 0 ? '➕ Cộng' : '➖ Trừ';
+        const absAmount = Math.abs(amount);
+
+        ctx.replyWithHTML(
+            `✅ <b>ĐÃ CẬP NHẬT SỐ DƯ</b>\n\n` +
+            `👤 User: <b>${user.full_name}</b> (<code>${userId}</code>)\n` +
+            `${action}: ${formatPrice(absAmount)}\n` +
+            `💰 Số dư cũ: ${formatPrice(user.balance)}\n` +
+            `💰 Số dư mới: <b>${formatPrice(newBalance)}</b>`
+        );
+    });
     // /setshop - Edit shop name & support
     bot.command('setshop', adminOnly, (ctx) => {
         const argsText = ctx.message.text.replace('/setshop', '').trim();
 
         if (!argsText) {
             return ctx.replyWithHTML(
+                
                 `🏪 <b>THÔNG TIN SHOP</b>\n\n` +
                 `├ Tên: <b>${config.SHOP_NAME}</b>\n` +
                 `└ Hỗ trợ: ${config.SUPPORT_CONTACT}\n\n` +
