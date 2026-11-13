@@ -39,7 +39,6 @@ require('./handlers/adminActions')(bot);
 
 // Set bot commands for menu
 bot.telegram.setMyCommands([
-    { command: 'test123', description: 'Test code mới' },
     { command: 'start', description: '🔄 Bắt đầu / Khởi động lại' },
     { command: 'menu', description: '👤 Thông tin tài khoản' },
     { command: 'product', description: '📦 Danh sách sản phẩm' },
