@@ -30,6 +30,10 @@ module.exports = (bot) => {
     bot.command('admin', adminOnly, (ctx) => {
         const stats = orderService.getStats();
         ctx.replyWithHTML(
+            `👥 <b>QUẢN LÝ USER:</b>\n` +
+            `/users — Xem danh sách users\n` +
+            `/setbalance [ID] [tiền] — Đặt lại số dư\n` +
+            `/addbalance [ID] [tiền] — Cộng/trừ số dư\n\n` +
             `🔧 <b>ADMIN PANEL — ${config.SHOP_NAME}</b>\n\n` +
             `📊 <b>Thống kê nhanh:</b>\n` +
             `├ 👥 Users: ${stats.totalUsers}\n` +
