@@ -1,5 +1,16 @@
 const db = require('../database');
+// File: services/userService.js
+const db = require('../database');
 
+// Hàm lấy user (nếu chưa có)
+exports.getUser = (telegramId) => {
+    return db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(telegramId);
+};
+
+// Hàm cập nhật số dư (nếu chưa có)
+exports.updateBalance = (telegramId, newBalance) => {
+    return db.prepare('UPDATE users SET balance = ? WHERE telegram_id = ?').run(newBalance, telegramId);
+};
 const userService = {
     /**
      * Find or create user
