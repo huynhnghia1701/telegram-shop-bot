@@ -125,11 +125,10 @@ function setupWebhook(bot) {
 
     // Simple health check endpoint (useful for uptime pings)
     app.get('/ping', (req, res) => res.json({ ok: true }));
+const PORT = process.env.PORT || config.WEBHOOK_PORT;
 
-    app.listen(config.WEBHOOK_PORT, () => {
-        console.log(`🌐 Webhook server đang lắng nghe tại port ${config.WEBHOOK_PORT}`);
-        console.log(`🔗 SePay webhook URL: http://<your-domain>:${config.WEBHOOK_PORT}/webhook/sepay`);
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`🌐 Webhook server đang lắng nghe tại port ${PORT}`);
+        console.log(`🔗 SePay webhook URL: http://<your-domain>:${PORT}/webhook/sepay`);
     });
-}
-
-module.exports = setupWebhook;
+    
