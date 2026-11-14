@@ -9,8 +9,46 @@ const { formatPrice, postDeliveryKeyboard } = require('../utils/keyboard');
 
 module.exports = (bot) => {
     // Handle quantity selection: qty_{productId}_{quantity}
+    bot.action(/^qty_(\d+)_(\d+)$/, async (ctx) => {
+        const productId = parseInt(ctx.match[1]);
+        const quantity = parseInt(ctx.match[2]);
+        const product = productService.getById(productId);
+
+        if (!product) {
+            return ctx.answerCbQuery('❌ Sản phẩm không tồn tại');
+        }
+
+        const availableStock = product.display_stock || product.stock_count;
+        if (availableStock < quantity) {
+            return ctx.answerCbQuery(`❌ Chỉ còn ${availableStock} sản phẩm`);
+        }
+
+        const totalPrice = product.price * quantity;
+        
+        userService.findOrCreate(ctx.from);
+        const user = userService.get(ctx.from.id);
+        
+        const buttons = [];
+        
+        if (user && user.balance >= totalPrice) {
+            buttons.push([Markup.button.callback(`💰 Thanh toán bằng số dư (${formatPrice(user.balance)})`, `pay_balance_${productId}_${quantity}`)]);
+        }
+        
+        buttons.push([Markup.button.callback('🏦 Thanh toán qua ngân hàng', `pay_bank_${productId}_${quantity}`)]);
+        buttons.push([Markup.button.callback('❌ Hủy', 'cancel_order')]);
+
+        ctx.replyWithHTML(
+            `📦 <b>${product.name}</b>\n` +
+            `📊 Số lượng: ${quantity}\n` +
+            `💵 Tổng tiền: <b>${formatPrice(totalPrice)}</b>\n\n` +
+            `💰 Số dư của bạn: <b>${formatPrice(user ? user.balance : 0)}</b>\n\n` +
+            `👇 Chọn phương thức thanh toán:`,
+            Markup.inlineKeyboard(buttons)
+        );
+    });
+
     // Xử lý thanh toán bằng số dư
-    bot.action(/^pay_balance_(\d+)_(\d+)$/, async (ctx) => {
+    bot.action(/^pay_balance_(\d+)_(\d+)$/, async (ctx) => { // <-- CHÚ Ý CHỮ ASYNC Ở ĐÂY
         const productId = parseInt(ctx.match[1]);
         const quantity = parseInt(ctx.match[2]);
         const product = productService.getById(productId);
@@ -22,10 +60,8 @@ module.exports = (bot) => {
             return ctx.answerCbQuery('❌ Số dư không đủ!');
         }
 
-        // Trừ tiền
         userService.deductBalance(ctx.from.id, totalPrice);
 
-        // Tạo đơn hàng
         const order = orderService.create(
             ctx.from.id,
             product.id,
@@ -34,8 +70,6 @@ module.exports = (bot) => {
             'BALANCE_PAY'
         );
         
-        // TUYỆT ĐỐI KHÔNG GỌI orderService.markPaid() Ở ĐÂY
-
         ctx.answerCbQuery('✅ Đã thanh toán bằng số dư!');
         
         ctx.editMessageText(
@@ -46,19 +80,6 @@ module.exports = (bot) => {
             { parse_mode: 'HTML' }
         );
 
-        // Giao hàng tự động
-        try {
-            const result = await deliverOrder(bot, order.id);
-            if (!result.success) {
-                ctx.reply(`❌ Lỗi giao hàng: ${result.error}`);
-            }
-        } catch (error) {
-            console.error('Lỗi giao hàng:', error);
-            ctx.reply('❌ Đã xảy ra lỗi khi giao hàng, vui lòng liên hệ Admin.');
-        }
-    });
-
-        // Giao hàng tự động (Gọi trực tiếp hàm deliverOrder ở dưới)
         try {
             const result = await deliverOrder(bot, order.id);
             if (!result.success) {
@@ -170,14 +191,12 @@ async function deliverOrder(bot, orderId) {
     const product = productService.getById(order.product_id);
 
     try {
-        // Send success notification
         await bot.telegram.sendMessage(
             order.user_id,
             messages.orderSuccessNotify(order.quantity),
             { parse_mode: 'HTML' }
         );
 
-        // Send account details
         await bot.telegram.sendMessage(
             order.user_id,
             messages.orderSuccess(product, order.quantity, result.accounts),
