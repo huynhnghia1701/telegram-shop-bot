@@ -20,7 +20,7 @@ module.exports = (bot) => {
             topupService.create(ctx.from.id, amount, payment.paymentCode);
 
             const caption = 
-                `💰 <b>NẠP SỐ DƯ</b>\n\n` +
+                `💰 <b>NẠP SỐ DƯ (V3)</b>\n\n` +
                 `🏦 Số tiền: <b>${formatPrice(amount)}</b>\n` +
                 `📝 Nội dung CK: <code>${payment.paymentCode}</code>\n\n` +
                 `⏳ Sau khi chuyển khoản, số dư sẽ được cập nhật tự động.`;
