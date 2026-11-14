@@ -146,8 +146,8 @@ async function deliverOrder(bot, orderId) {
     const order = result.order;
     const product = productService.getById(order.product_id);
 
+    // 1. Gửi tin nhắn cho khách
     try {
-        // 1. Gửi tin nhắn thông báo cho KHÁCH HÀNG
         await bot.telegram.sendMessage(
             order.user_id,
             messages.orderSuccessNotify(order.quantity),
@@ -162,8 +162,12 @@ async function deliverOrder(bot, orderId) {
                 ...postDeliveryKeyboard(),
             }
         );
+    } catch (err) {
+        console.error(`Lỗi gửi tin nhắn cho khách ${order.user_id}:`, err.message);
+    }
 
-        // 2. GỬI TIN NHẮN THÔNG BÁO CHO ADMIN
+    // 2. Gửi tin nhắn thông báo cho Admin (bọc try/catch riêng để không ảnh hưởng khách)
+    try {
         const db = require('../database');
         const buyer = db.prepare('SELECT full_name, username FROM users WHERE telegram_id = ?').get(order.user_id);
         
@@ -179,9 +183,8 @@ async function deliverOrder(bot, orderId) {
             `✅ (Hệ thống đã tự động trừ tiền/giao hàng)`;
 
         await bot.telegram.sendMessage(config.ADMIN_ID, adminMsg, { parse_mode: 'HTML' });
-
     } catch (err) {
-        console.error(`Failed to send delivery to ${order.user_id}:`, err.message);
+        console.error('Lỗi gửi tin nhắn cho Admin:', err.message);
     }
 
     return result;
