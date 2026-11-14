@@ -7,20 +7,15 @@ const { formatPrice } = require('./utils/keyboard');
 
 function extractPaymentSuffix(content) {
     if (!content) return null;
-    // Chuyển hết sang chữ in hoa và xóa mọi khoảng trắng
-    const cleanContent = content.toUpperCase().replace(/\s+/g, '');
     
-    // Tìm mã PAY-XXXXXX (có gạch ngang)
-    let match = cleanContent.match(/PAY-([A-Z0-9]{6})/);
-    if (match) return match[1];
-
-    // Nếu ngân hàng xóa gạch ngang: tìm PAYXXXXXX
-    match = cleanContent.match(/PAY([A-Z0-9]{6})/);
-    if (match) return match[1];
-
-    // Nếu ngân hàng cắt mất chữ PAY, tìm 6 ký tự cuối cùng (VD: UC9UWI)
-    // Lưu ý: cách này rủi ro nếu có giao dịch khác vô tình trùng, nhưng tỷ lệ rất thấp
-    return null; 
+    // 1. Chuyển sang in hoa và xóa mọi dấu cách, dấu gạch ngang
+    const cleanContent = content.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    
+    // 2. Tìm chữ PAY, theo sau là đúng 6 ký tự chữ/số
+    const match = cleanContent.match(/PAY([A-Z0-9]{6})/);
+    
+    // 3. Trả về 6 ký tự đó (VD: PAYAZOP2Y -> AZOP2Y)
+    return match ? match[1] : null;
 }
 function setupWebhook(bot) {
     const app = express();
