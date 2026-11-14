@@ -2,7 +2,6 @@ const paymentService = require('../services/paymentService');
 const topupService = require('../services/topupService');
 const userService = require('../services/userService');
 const { formatPrice } = require('../utils/keyboard');
-const axios = require('axios'); // Thư viện tải ảnh
 
 module.exports = (bot) => {
     bot.command('nap', async (ctx) => {
@@ -20,21 +19,12 @@ module.exports = (bot) => {
             topupService.create(ctx.from.id, amount, payment.paymentCode);
 
             const caption = 
-                `💰 <b>NẠP SỐ DƯ (V3)</b>\n\n` +
+                `💰 <b>NẠP SỐ DƯ</b>\n\n` +
                 `🏦 Số tiền: <b>${formatPrice(amount)}</b>\n` +
                 `📝 Nội dung CK: <code>${payment.paymentCode}</code>\n\n` +
                 `⏳ Sau khi chuyển khoản, số dư sẽ được cập nhật tự động.`;
 
-            // Tải ảnh QR về và gửi trực tiếp
-            try {
-                const response = await axios.get(payment.qrUrl, { responseType: 'arraybuffer' });
-                const imageBuffer = Buffer.from(response.data, 'binary');
-
-                await ctx.replyWithPhoto({ source: imageBuffer }, {
-                    caption: caption,
-                    parse_mode: 'HTML'
-                });
-            } // Gửi ảnh trực tiếp (Không dùng axios)
+            // Gửi ảnh trực tiếp (Không dùng axios)
             try {
                 await ctx.replyWithPhoto(payment.qrUrl, {
                     caption: caption,
@@ -42,6 +32,7 @@ module.exports = (bot) => {
                 });
             } catch (err) {
                 // Nếu lỗi mới gửi link
+                console.error('Lỗi gửi ảnh QR:', err.message);
                 await ctx.replyWithHTML(caption + `\n👉 <a href="${payment.qrUrl}">BẤM VÀO ĐÂY ĐỂ LẤY MÃ QR</a>`);
             }
             
