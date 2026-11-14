@@ -69,14 +69,13 @@ module.exports = (bot) => {
         orderService.markPaid(order.id);
 
         ctx.answerCbQuery('✅ Đã thanh toán bằng số dư!');
-        ctx.editMessageText(
+       ctx.editMessageText(
             `✅ <b>THANH TOÁN THÀNH CÔNG</b>\n\n` +
             `💰 Đã trừ: <b>${formatPrice(totalPrice)}</b>\n` +
             `💵 Số dư còn lại: <b>${formatPrice(user.balance - totalPrice)}</b>\n\n` +
             `📦 Đang giao hàng cho bạn...`,
-            { parse_mode: 'HTML' }
+            { parse_mode: 'HTML' } // <-- Thêm dòng này để hết lỗi font
         );
-
         // Giao hàng
         try {
             const result = await deliverOrder(bot, order.id);
