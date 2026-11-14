@@ -71,7 +71,6 @@ db.exec(`
     FOREIGN KEY (product_id) REFERENCES products(id)
   );
 `);
-
 CREATE TABLE IF NOT EXISTS topups (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     telegram_id INTEGER NOT NULL,
