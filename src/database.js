@@ -70,7 +70,8 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(telegram_id),
     FOREIGN KEY (product_id) REFERENCES products(id)
   );
-CREATE TABLE IF NOT EXISTS topups (
+
+  CREATE TABLE IF NOT EXISTS topups (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     telegram_id INTEGER NOT NULL,
     amount INTEGER NOT NULL,
@@ -78,12 +79,17 @@ CREATE TABLE IF NOT EXISTS topups (
     status TEXT DEFAULT 'pending',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     paid_at DATETIME
-);
+  );
 `);
 
-// Safe migrations for existing databases
-try { db.exec('ALTER TABLE products ADD COLUMN contact_url TEXT'); } catch (e) { /* already exists */ }
-try { db.exec('ALTER TABLE products ADD COLUMN sheet_stock INTEGER DEFAULT 0'); } catch (e) { /* already exists */ }
+// ═══════════════════════════════════════════════════════
+// SAFE MIGRATIONS: Tự động thêm cột nếu Database cũ bị thiếu
+// ═══════════════════════════════════════════════════════
+try { db.exec('ALTER TABLE products ADD COLUMN contact_url TEXT'); } catch (e) { }
+try { db.exec('ALTER TABLE products ADD COLUMN sheet_stock INTEGER DEFAULT 0'); } catch (e) { }
+// Thêm 2 dòng này để fix lỗi mua hàng:
+try { db.exec('ALTER TABLE stock ADD COLUMN sold_to INTEGER'); } catch (e) { }
+try { db.exec('ALTER TABLE stock ADD COLUMN sold_at DATETIME'); } catch (e) { }
 
 // Seed data - only if categories table is empty
 const catCount = db.prepare('SELECT COUNT(*) as c FROM categories').get();
@@ -93,14 +99,13 @@ if (catCount.c === 0) {
   // Insert categories
   const insertCat = db.prepare('INSERT INTO categories (name, emoji, sort_order) VALUES (?, ?, ?)');
   insertCat.run('Telegram', '🤖', 1);
+  
   // Insert products
   const insertProd = db.prepare(`
     INSERT INTO products (category_id, name, price, emoji, promotion, contact_only)
     VALUES (?, ?, ?, ?, ?, ?)
   `);
 
-  // ChatGPT category (id=1)
-  
   insertProd.run(1, 'TeleGram', 500000, '📦', null, 0);
 
   console.log('✅ Seed data created!');
