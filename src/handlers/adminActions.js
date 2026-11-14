@@ -232,16 +232,19 @@ module.exports = (bot) => {
     });
 
     // Lệnh /order1 mới được thêm vào đây
-   bot.command('order1', adminOnly, async (ctx) => {
+ // /order1 [user_id] - Xem lịch sử mua hàng của 1 user cụ thể
+    bot.command('order1', adminOnly, async (ctx) => {
         const args = ctx.message.text.split(' ');
-        if (args.length < 2) return ctx.replyWithHTML('Cách dùng: <code>/order1 [user_id]</code>');
+        if (args.length < 2) return ctx.replyWithHTML('Cách dùng: <code>/order1 [user_id]</code>\nVí dụ: <code>/order1 7979928097</code>');
 
         const userId = parseInt(args[1]);
         const db = require('../database');
         
+        // Lấy thông tin user
         const user = db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(userId);
         if (!user) return ctx.reply('❌ Không tìm thấy user này.');
 
+        // Lấy danh sách đơn hàng của user
         const orders = db.prepare(`
             SELECT o.*, p.name as product_name
             FROM orders o
@@ -259,12 +262,13 @@ module.exports = (bot) => {
                    `Số dư hiện tại: ${formatPrice(user.balance)}\n\n` +
                    `━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
+        // Lặp qua từng đơn hàng để lấy tài khoản đã giao
         for (const order of orders) {
             text += `📦 <b>Đơn #${order.id}</b> | ${order.created_at}\n`;
             text += `Sản phẩm: ${order.product_name} × ${order.quantity}\n`;
             text += `Số tiền: ${formatPrice(order.total_price)}\n`;
             
-            // SỬA Ở ĐÂY: Đổi user_id thành sold_to
+            // SỬA Ở ĐÂY: Đổi user_id thành sold_to cho khớp với database
             const accounts = db.prepare(`
                 SELECT data FROM stock 
                 WHERE product_id = ? AND sold_to = ? AND is_sold = 1 
@@ -281,7 +285,6 @@ module.exports = (bot) => {
 
         ctx.replyWithHTML(text);
     });
-
     bot.command('setbank', adminOnly, (ctx) => {
         ctx.replyWithHTML(`🏦 <b>THÔNG TIN NGÂN HÀNG</b>\n\n├ Ngân hàng: <b>${config.BANK.NAME}</b>\n├ BIN: <code>${config.BANK.BIN}</code>\n├ Số TK: <code>${config.BANK.ACCOUNT}</code>\n└ Chủ TK: <b>${config.BANK.ACCOUNT_NAME}</b>`);
     });
