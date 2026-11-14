@@ -2,6 +2,7 @@ const paymentService = require('../services/paymentService');
 const topupService = require('../services/topupService');
 const userService = require('../services/userService');
 const { formatPrice } = require('../utils/keyboard');
+const axios = require('axios');
 
 module.exports = (bot) => {
     bot.command('nap', async (ctx) => {
@@ -14,7 +15,6 @@ module.exports = (bot) => {
             const amount = parseInt(text[1]);
             if (amount < 10000) return ctx.reply('❌ Số tiền tối thiểu là 10.000đ');
 
-            // 1. Tạo user và mã thanh toán
             userService.findOrCreate(ctx.from);
             const payment = paymentService.generatePayment(amount);
             topupService.create(ctx.from.id, amount, payment.paymentCode);
@@ -25,11 +25,21 @@ module.exports = (bot) => {
                 `📝 Nội dung CK: <code>${payment.paymentCode}</code>\n\n` +
                 `⏳ Sau khi chuyển khoản, số dư sẽ được cập nhật tự động.`;
 
-            // 2. Gửi ảnh QR trực tiếp (Không dùng try/catch ẩn, không dùng axios)
-            await ctx.replyWithPhoto(payment.qrUrl, {
-                caption: caption,
-                parse_mode: 'HTML'
-            });
+            try {
+                // Tải ảnh QR từ VietQR về dưới dạng Buffer (Mã nhị phân)
+                const response = await axios.get(payment.qrUrl, { responseType: 'arraybuffer' });
+                const imageBuffer = Buffer.from(response.data, 'binary');
+
+                // Gửi ảnh từ Buffer (Telegram sẽ nhận ngay lập tức, không cần chờ mạng)
+                await ctx.replyWithPhoto({ source: imageBuffer }, {
+                    caption: caption,
+                    parse_mode: 'HTML'
+                });
+            } catch (imgError) {
+                // Nếu VietQR sập hoàn toàn, gửi link dự phòng
+                console.error('Không tải được ảnh QR:', imgError.message);
+                await ctx.replyWithHTML(caption + `\n👉 <a href="${payment.qrUrl}">BẤM VÀO ĐÂY ĐỂ LẤY MÃ QR</a>`);
+            }
             
         } catch (err) {
             console.error('❌ Lỗi /nap:', err);
