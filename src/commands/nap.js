@@ -2,7 +2,7 @@ const paymentService = require('../services/paymentService');
 const topupService = require('../services/topupService');
 const userService = require('../services/userService');
 const { formatPrice } = require('../utils/keyboard');
- // Cần dùng thư viện axios để tải ảnh
+const axios = require('axios'); // Thư viện tải ảnh
 
 module.exports = (bot) => {
     bot.command('nap', async (ctx) => {
@@ -15,36 +15,28 @@ module.exports = (bot) => {
             const amount = parseInt(text[1]);
             if (amount < 10000) return ctx.reply('❌ Số tiền tối thiểu là 10.000đ');
 
-            // 1. Tạo user
             userService.findOrCreate(ctx.from);
-            
-            // 2. Tạo mã QR
             const payment = paymentService.generatePayment(amount);
-            
-            // 3. Lưu Database
             topupService.create(ctx.from.id, amount, payment.paymentCode);
 
-            // 4. Nội dung tin nhắn (Caption)
             const caption = 
                 `💰 <b>NẠP SỐ DƯ</b>\n\n` +
-                `Quét mã QR phía trên để chuyển khoản.\n\n` +
                 `🏦 Số tiền: <b>${formatPrice(amount)}</b>\n` +
                 `📝 Nội dung CK: <code>${payment.paymentCode}</code>\n\n` +
                 `⏳ Sau khi chuyển khoản, số dư sẽ được cập nhật tự động.`;
 
-            // 5. Tải ảnh QR về và gửi (Tránh lỗi 400)
+            // Tải ảnh QR về và gửi trực tiếp
             try {
                 const response = await axios.get(payment.qrUrl, { responseType: 'arraybuffer' });
                 const imageBuffer = Buffer.from(response.data, 'binary');
 
-               // Gửi ảnh trực tiếp bằng URL có sẵn của Telegram
-            await ctx.replyWithPhoto(payment.qrUrl, {
-                caption: caption,
-                parse_mode: 'HTML'
-            });
+                await ctx.replyWithPhoto({ source: imageBuffer }, {
+                    caption: caption,
+                    parse_mode: 'HTML'
+                });
             } catch (imgError) {
-                // Nếu tải ảnh lỗi, tự động fallback gửi link
-                console.error('Lỗi tải ảnh QR, chuyển sang gửi link:', imgError.message);
+                // Nếu tải ảnh lỗi, tự động gửi link dự phòng
+                console.error('Lỗi tải ảnh QR:', imgError.message);
                 await ctx.replyWithHTML(caption + `\n👉 <a href="${payment.qrUrl}">BẤM VÀO ĐÂY ĐỂ LẤY MÃ QR</a>`);
             }
             
