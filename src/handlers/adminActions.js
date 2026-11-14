@@ -70,7 +70,59 @@ module.exports = (bot) => {
     });
 
     bot.command('sync', adminOnly, async (ctx) => { await runSync(ctx); });
+// /checkorder [user_id] - Xem lịch sử mua hàng của 1 user cụ thể
+    bot.command('checkorder', adminOnly, async (ctx) => {
+        const args = ctx.message.text.split(' ');
+        if (args.length < 2) return ctx.replyWithHTML('Cách dùng: <code>/checkorder [user_id]</code>\nVí dụ: <code>/checkorder 7979928097</code>');
 
+        const userId = parseInt(args[1]);
+        const db = require('../database');
+        
+        // Lấy thông tin user
+        const user = db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(userId);
+        if (!user) return ctx.reply('❌ Không tìm thấy user này.');
+
+        // Lấy danh sách đơn hàng của user
+        const orders = db.prepare(`
+            SELECT o.*, p.name as product_name
+            FROM orders o
+            JOIN products p ON o.product_id = p.id
+            WHERE o.user_id = ? AND o.status = 'delivered'
+            ORDER BY o.created_at DESC
+        `).all(userId);
+
+        if (orders.length === 0) {
+            return ctx.replyWithHTML(`👤 <b>User:</b> ${user.full_name} (<code>${userId}</code>)\n\n⚠️ User này chưa có đơn hàng nào thành công.`);
+        }
+
+        let text = `👤 <b>LỊCH SỬ MUA HÀNG</b>\n` +
+                   `Tên: <b>${user.full_name}</b> (<code>${userId}</code>)\n` +
+                   `Số dư hiện tại: ${formatPrice(user.balance)}\n\n` +
+                   `━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+        // Lặp qua từng đơn hàng để lấy tài khoản đã giao
+        for (const order of orders) {
+            text += `📦 <b>Đơn #${order.id}</b> | ${order.created_at}\n`;
+            text += `Sản phẩm: ${order.product_name} × ${order.quantity}\n`;
+            text += `Số tiền: ${formatPrice(order.total_price)}\n`;
+            
+            // Lấy tài khoản đã giao cho đơn này
+            const accounts = db.prepare(`
+                SELECT data FROM stock 
+                WHERE product_id = ? AND user_id = ? AND is_sold = 1 
+                ORDER BY id DESC LIMIT ?
+            `).all(order.product_id, order.user_id, order.quantity);
+
+            if (accounts.length > 0) {
+                text += `🔑 Tài khoản/Data: <code>${accounts.map(a => a.data).join(' | ')}</code>\n`;
+            } else {
+                text += `🔑 Tài khoản/Data: (Không tìm thấy trong kho)\n`;
+            }
+            text += `\n`;
+        }
+
+        ctx.replyWithHTML(text);
+    });
     async function runSync(ctx) {
         const { syncFromSheet, SYNC_INTERVAL } = require('../services/sheetSync');
         if (!process.env.GOOGLE_SHEET_ID) return ctx.replyWithHTML(`❌ <b>Chưa cài đặt Google Sheet!</b>\n\nThêm <code>GOOGLE_SHEET_ID</code> vào file .env`);
