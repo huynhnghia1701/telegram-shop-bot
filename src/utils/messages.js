@@ -6,7 +6,7 @@ const SHOP = config.SHOP_NAME;
 const messages = {
     welcome: (name) =>
         `👋 Chào mừng <b>${name}</b> đến với <b>${SHOP}</b>!\n\n` +
-        `🛒 Chuyên cung cấp tài khoản Premium giá rẻ\n\n` +
+        `🛒 Chuyên cung cấp tài khoản giá rẻ\n\n` +
         `📋 <b>Danh sách lệnh:</b>\n` +
         `/start — 🔄 Bắt đầu / Khởi động lại\n` +
         `/menu — 👤 Thông tin tài khoản\n` +
@@ -62,8 +62,7 @@ const messages = {
             msg += `${i + 1})\n<code>${acc}</code>\n`;
         });
 
-        msg += `\n📖 <b>Hướng dẫn:</b> maill | passmail | passchatgpt\n` +
-            `log vào outlook.com để lấy code nha các bạn`;
+        msg += `\n📖 <b>Hướng dẫn:</b> Khi Mua Nhớ Ghi Lại Số Điện Thoại | Liên Hệ Admin Để Lấy Code Đăng Nhập \n` +;
 
         return msg;
     },
