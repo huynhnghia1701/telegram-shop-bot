@@ -55,6 +55,7 @@ module.exports = (bot) => {
         const totalPrice = product.price * quantity;
 
         const user = userService.get(ctx.from.id);
+
         if (!user || user.balance < totalPrice) {
             return ctx.answerCbQuery('❌ Số dư không đủ!');
         }
@@ -65,28 +66,28 @@ module.exports = (bot) => {
         // Tạo đơn hàng
         const order = orderService.create(ctx.from.id, product.id, quantity, totalPrice, 'BALANCE_PAY');
         
-        // Đánh dấu đã thanh toán (để hàm giao hàng bên dưới chấp nhận)
-        orderService.markPaid(order.id);
-
         ctx.answerCbQuery('✅ Đã thanh toán bằng số dư!');
-       ctx.editMessageText(
+        
+        // Sửa lỗi font: Thêm parse_mode
+        ctx.editMessageText(
             `✅ <b>THANH TOÁN THÀNH CÔNG</b>\n\n` +
             `💰 Đã trừ: <b>${formatPrice(totalPrice)}</b>\n` +
             `💵 Số dư còn lại: <b>${formatPrice(user.balance - totalPrice)}</b>\n\n` +
             `📦 Đang giao hàng cho bạn...`,
-            { parse_mode: 'HTML' } // <-- Thêm dòng này để hết lỗi font
+            { parse_mode: 'HTML' }
         );
-        // Giao hàng
+
+        // Giao hàng và IN LỖI TRỰC TIẾP (nếu có)
         try {
             const result = await deliverOrder(bot, order.id);
             if (!result.success) {
-                ctx.reply(`❌ Lỗi giao hàng: ${result.error}`);
+                ctx.reply(`❌ Lỗi giao hàng (1): ${result.error}`);
             }
         } catch (error) {
-            ctx.reply('❌ Đã xảy ra lỗi khi giao hàng, vui lòng liên hệ Admin.');
+            // In thẳng lỗi ra màn hình Telegram
+            ctx.reply(`❌ Lỗi giao hàng (2): ${error.message}`); 
         }
     });
-
     // 3. Nút thanh toán qua ngân hàng
     bot.action(/^pay_bank_(\d+)_(\d+)$/, async (ctx) => {
         const productId = parseInt(ctx.match[1]);
