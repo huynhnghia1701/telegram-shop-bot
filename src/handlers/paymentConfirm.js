@@ -133,22 +133,56 @@ module.exports = (bot) => {
 };
 
 // Hàm giao hàng (Giữ nguyên)
+/**
+ * Deliver order (called by admin confirm or webhook)
+ */
 async function deliverOrder(bot, orderId) {
     const result = orderService.confirmAndDeliver(orderId);
-    if (!result.success) return result;
+
+    if (!result.success) {
+        return result;
+    }
 
     const order = result.order;
     const product = productService.getById(order.product_id);
 
     try {
-        await bot.telegram.sendMessage(order.user_id, messages.orderSuccessNotify(order.quantity), { parse_mode: 'HTML' });
-        await bot.telegram.sendMessage(order.user_id, messages.orderSuccess(product, order.quantity, result.accounts), {
-            parse_mode: 'HTML',
-            ...postDeliveryKeyboard(),
-        });
+        // 1. Gửi tin nhắn thông báo cho KHÁCH HÀNG
+        await bot.telegram.sendMessage(
+            order.user_id,
+            messages.orderSuccessNotify(order.quantity),
+            { parse_mode: 'HTML' }
+        );
+
+        await bot.telegram.sendMessage(
+            order.user_id,
+            messages.orderSuccess(product, order.quantity, result.accounts),
+            {
+                parse_mode: 'HTML',
+                ...postDeliveryKeyboard(),
+            }
+        );
+
+        // 2. GỬI TIN NHẮN THÔNG BÁO CHO ADMIN
+        const db = require('../database');
+        const buyer = db.prepare('SELECT full_name, username FROM users WHERE telegram_id = ?').get(order.user_id);
+        
+        const buyerName = buyer ? buyer.full_name : 'Khách';
+        const buyerUsername = (buyer && buyer.username) ? ` (@${buyer.username})` : '';
+
+        const adminMsg = 
+            `🔔 <b>CÓ ĐƠN HÀNG MỚI THÀNH CÔNG!</b>\n\n` +
+            `👤 Khách: <b>${buyerName}</b>${buyerUsername} (<code>${order.user_id}</code>)\n` +
+            `📦 Sản phẩm: <b>${product.name}</b> × ${order.quantity}\n` +
+            `💰 Tổng tiền: <b>${formatPrice(order.total_price)}</b>\n` +
+            `🆔 Mã đơn: <code>#${order.id}</code>\n\n` +
+            `✅ (Hệ thống đã tự động trừ tiền/giao hàng)`;
+
+        await bot.telegram.sendMessage(config.ADMIN_ID, adminMsg, { parse_mode: 'HTML' });
+
     } catch (err) {
         console.error(`Failed to send delivery to ${order.user_id}:`, err.message);
     }
+
     return result;
 }
-module.exports.deliverOrder = deliverOrder;
