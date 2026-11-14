@@ -101,7 +101,7 @@ if (catCount.c === 0) {
 
   // ChatGPT category (id=1)
   
-  insertProd.run(1, 'TeleGram', 650000, '📦', null, 0);
+  insertProd.run(1, 'TeleGram', 500000, '📦', null, 0);
 
   console.log('✅ Seed data created!');
 }
