@@ -24,8 +24,9 @@ const paymentService = {
     /**
      * Generate unique payment code
      */
-    generatePaymentCode() {
-        return `NAP PAY-${generateId()}`;
+  generatePaymentCode() {
+        // Bỏ khoảng trắng, chỉ giữ lại chữ PAY-XXXXXX
+        return `PAY-${generateId()}`; 
     },
 
     /**
