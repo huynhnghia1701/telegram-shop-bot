@@ -62,7 +62,7 @@ const messages = {
             msg += `${i + 1})\n<code>${acc}</code>\n`;
         });
 
-        msg += `\n📖 <b>Hướng dẫn:</b> Khi Mua Nhớ Ghi Lại Số Điện Thoại | Liên Hệ Admin Để Lấy Code Đăng Nhập \n` +;
+        msg += `\n📖 <b>Hướng dẫn:</b> Khi Mua Nhớ Ghi Lại Số Điện Thoại | Liên Hệ Admin Để Lấy Code Đăng Nhập \n` ;
 
         return msg;
     },
