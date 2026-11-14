@@ -38,8 +38,9 @@ module.exports = (bot) => {
     });
 
     // 2. Thanh toán bằng số dư
+    // 2. Thanh toán bằng số dư
     bot.action(/^pay_balance_(\d+)_(\d+)$/, async (ctx) => {
-        try {
+        try { // <-- Try lớn bọc ngoài
             const productId = parseInt(ctx.match[1]);
             const quantity = parseInt(ctx.match[2]);
             const product = productService.getById(productId);
@@ -48,11 +49,12 @@ module.exports = (bot) => {
 
             if (!user || user.balance < totalPrice) return ctx.answerCbQuery('❌ Số dư không đủ!');
 
-            // Trừ tiền và tạo đơn
             userService.deductBalance(ctx.from.id, totalPrice);
+            
+            // Tạo đơn hàng
             const order = orderService.create(ctx.from.id, product.id, quantity, totalPrice, 'BALANCE_PAY');
             
-            // SỬA LỖI FONT TẠI ĐÂY (Thêm parse_mode)
+            // Báo thành công cho khách (Đã sửa lỗi font)
             await ctx.answerCbQuery('✅ Đã thanh toán!');
             await ctx.editMessageText(
                 `✅ <b>THANH TOÁN THÀNH CÔNG</b>\n\n` +
@@ -61,6 +63,22 @@ module.exports = (bot) => {
                 `📦 Đang giao hàng...`,
                 { parse_mode: 'HTML' }
             );
+
+            // BỎ ĐOẠN TRY/CATCH BẠN HỎI VÀO ĐÂY NÀY:
+            try {
+                const result = await deliverOrder(bot, order.id);
+                if (!result.success) {
+                    ctx.reply(`❌ Lỗi giao hàng: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('Lỗi DB:', error);
+                ctx.reply(`❌ Lỗi chi tiết: ${error.message}`);
+            }
+
+        } catch (error) { // <-- Catch của Try lớn
+            ctx.reply(`❌ Lỗi thanh toán: ${error.message}`);
+        }
+    });
 
             // Gọi hàm giao hàng
             await deliverOrder(bot, order.id);
