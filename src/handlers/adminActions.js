@@ -29,8 +29,7 @@ module.exports = (bot) => {
             `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
             `👥 <b>QUẢN LÝ USER & SỐ DƯ:</b>\n` +
             `/users — Xem danh sách users\n` +
-            `/setbalance [ID] [tiền] — Đặt lại số dư\n` +
-            `/addbalance [ID] [tiền] — Cộng/trừ số dư\n\n` +
+            `/setbalance [ID] [tiền] — Đặt lại số dư\n\n` +
             `📦 <b>QUẢN LÝ SẢN PHẨM:</b>\n` +
             `/listproduct — Xem tất cả sản phẩm\n` +
             `/addproduct — Thêm sản phẩm mới\n` +
@@ -46,8 +45,7 @@ module.exports = (bot) => {
             `/pending — Xem đơn chờ thanh toán\n` +
             `/confirm [orderID] — Xác nhận & giao hàng\n` +
             `/cancelorder [orderID] — Hủy đơn\n` +
-            `/orders — Xem tất cả đơn hàng\n` +
-            `/vieworder [orderID] — Xem & gửi lại tài khoản\n\n` +
+            `/orders — Xem tất cả đơn hàng\n\n` +
             `🏦 <b>CÀI ĐẶT:</b>\n` +
             `/setbank — Xem thông tin ngân hàng\n` +
             `/setshop — Xem/sửa thông tin shop\n\n` +
@@ -234,37 +232,6 @@ module.exports = (bot) => {
         ctx.replyWithHTML(text);
     });
 
-    bot.command('vieworder', adminOnly, async (ctx) => {
-        const args = ctx.message.text.split(' ');
-        if (args.length < 2) return ctx.replyWithHTML('Cách dùng: <code>/vieworder [orderID]</code>');
-        const orderId = parseInt(args[1]);
-        const db = require('../database');
-        const order = db.prepare(`SELECT o.*, p.name as product_name, u.full_name as user_name, u.telegram_id FROM orders o JOIN products p ON o.product_id = p.id JOIN users u ON o.user_id = u.telegram_id WHERE o.id = ?`).get(orderId);
-        if (!order) return ctx.reply('❌ Đơn hàng không tồn tại');
-        const accounts = db.prepare(`SELECT data FROM stock WHERE product_id = ? AND user_id = ? AND is_sold = 1 ORDER BY id DESC LIMIT ?`).all(order.product_id, order.user_id, order.quantity);
-        if (accounts.length === 0) return ctx.replyWithHTML(`📌 <b>ĐƠN HÀNG #${order.id}</b>\n👤 Khách: ${order.user_name} (<code>${order.user_id}</code>)\n📦 SP: ${order.product_name}\n\n⚠️ Không tìm thấy tài khoản trong kho.`);
-        let text = `📌 <b>CHI TIẾT ĐƠN HÀNG #${order.id}</b>\n\n👤 Khách: <b>${order.user_name}</b> (<code>${order.user_id}</code>)\n📦 SP: ${order.product_name} × ${order.quantity}\n📅 Ngày mua: ${order.created_at}\n\n🔑 <b>Tài khoản đã giao:</b>\n`;
-        accounts.forEach((acc, i) => { text += `${i + 1}. <code>${acc.data}</code>\n`; });
-        ctx.replyWithHTML(text, Markup.inlineKeyboard([[Markup.button.callback('📤 Gửi lại cho khách', `resend_order_${order.id}`)]]));
-    });
-
-    bot.action(/^resend_order_(\d+)$/, async (ctx) => {
-        if (!isAdmin(ctx)) return ctx.answerCbQuery('⛔');
-        const orderId = parseInt(ctx.match[1]);
-        const db = require('../database');
-        const order = db.prepare(`SELECT o.*, p.name as product_name, u.telegram_id FROM orders o JOIN products p ON o.product_id = p.id JOIN users u ON o.user_id = u.telegram_id WHERE o.id = ?`).get(orderId);
-        if (!order) return ctx.answerCbQuery('❌ Không tìm thấy đơn');
-        const accounts = db.prepare(`SELECT data FROM stock WHERE product_id = ? AND user_id = ? AND is_sold = 1 ORDER BY id DESC LIMIT ?`).all(order.product_id, order.user_id, order.quantity);
-        let customerMsg = `📦 <b>GỬI LẠI THÔNG TIN ĐƠN HÀNG #${orderId}</b>\n\nSản phẩm: ${order.product_name} × ${order.quantity}\n\n🔑 <b>Thông tin tài khoản:</b>\n`;
-        accounts.forEach((acc, i) => { customerMsg += `${i + 1}. <code>${acc.data}</code>\n`; });
-        try {
-            await bot.telegram.sendMessage(order.telegram_id, customerMsg, { parse_mode: 'HTML' });
-            ctx.answerCbQuery('✅ Đã gửi lại cho khách!');
-        } catch (err) {
-            ctx.answerCbQuery('❌ Lỗi gửi tin nhắn.', { show_alert: true });
-        }
-    });
-
     bot.command('setbank', adminOnly, (ctx) => {
         ctx.replyWithHTML(`🏦 <b>THÔNG TIN NGÂN HÀNG</b>\n\n├ Ngân hàng: <b>${config.BANK.NAME}</b>\n├ BIN: <code>${config.BANK.BIN}</code>\n├ Số TK: <code>${config.BANK.ACCOUNT}</code>\n└ Chủ TK: <b>${config.BANK.ACCOUNT_NAME}</b>`);
     });
@@ -297,22 +264,6 @@ module.exports = (bot) => {
         userService.updateBalance(userId, amount);
         ctx.replyWithHTML(`✅ <b>ĐÃ CẬP NHẬT SỐ DƯ</b>\n\n👤 User: <b>${user.full_name}</b> (<code>${userId}</code>)\n💰 Số dư cũ: ${formatPrice(oldBalance)}\n💰 Số dư mới: <b>${formatPrice(amount)}</b>`);
         bot.telegram.sendMessage(userId, `💰 Số dư tài khoản của bạn đã được Admin cập nhật thành: <b>${formatPrice(amount)}</b>`, { parse_mode: 'HTML' }).catch(() => {});
-    });
-
-    bot.command('addbalance', adminOnly, (ctx) => {
-        const args = ctx.message.text.split(' ');
-        if (args.length < 3) return ctx.replyWithHTML(`💸 <b>CỘNG/TRỪ SỐ DƯ USER</b>\n\nCách dùng: <code>/addbalance [user_id] [số_tiền]</code>`);
-        const userId = parseInt(args[1]);
-        const amount = parseInt(args[2]);
-        if (isNaN(userId) || isNaN(amount)) return ctx.reply('❌ User ID hoặc số tiền không hợp lệ.');
-        const user = userService.getUser(userId);
-        if (!user) return ctx.reply('❌ Không tìm thấy user này trong hệ thống.');
-        const newBalance = user.balance + amount;
-        if (newBalance < 0) return ctx.reply(`❌ Số dư không đủ để trừ. Số dư hiện tại: ${formatPrice(user.balance)}`);
-        userService.updateBalance(userId, newBalance);
-        const action = amount > 0 ? '➕ Cộng' : '➖ Trừ';
-        const absAmount = Math.abs(amount);
-        ctx.replyWithHTML(`✅ <b>ĐÃ CẬP NHẬT SỐ DƯ</b>\n\n👤 User: <b>${user.full_name}</b> (<code>${userId}</code>)\n${action}: ${formatPrice(absAmount)}\n💰 Số dư cũ: ${formatPrice(user.balance)}\n💰 Số dư mới: <b>${formatPrice(newBalance)}</b>`);
     });
 
     bot.command('stats', adminOnly, (ctx) => { showStats(ctx); });
