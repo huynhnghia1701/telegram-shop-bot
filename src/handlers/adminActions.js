@@ -1,4 +1,4 @@
-const config = require('../config');
+ const config = require('../config');
 const orderService = require('../services/orderService');
 const productService = require('../services/productService');
 const userService = require('../services/userService');
@@ -260,21 +260,32 @@ module.exports = (bot) => {
     // ═══════════════════════════════════════
 
     // /addstock [ID] - Add stock items
-// /broadcast - Send message to all users
-    bot.command('broadcast', adminOnly, (ctx) => {
-        const msg = ctx.message.text.replace('/broadcast', '').trim();
-
-        if (!msg) {
-            adminState[ctx.from.id] = { action: 'broadcast' };
+    bot.command('addstock', adminOnly, (ctx) => {
+        const args = ctx.message.text.split(' ');
+        if (args.length < 2) {
+            const products = productService.getAll();
+            let list = products.map((p) => `  #${p.id} ${p.name} (kho: ${p.stock_count})`).join('\n');
             return ctx.replyWithHTML(
-                `📢 <b>GỬI THÔNG BÁO</b>\n\n` +
-                `Gửi nội dung thông báo ngay bây giờ.\n` +
-                `Hỗ trợ HTML formatting.\n\n` +
-                `Gõ /cancel để hủy.`
+                `📦 <b>THÊM TÀI KHOẢN VÀO KHO</b>\n\n` +
+                `Cách dùng: <code>/addstock [productID]</code>\n\n` +
+                `Sau đó gửi danh sách tài khoản (mỗi dòng 1 cái).\n\n` +
+                `📋 <b>Sản phẩm:</b>\n${list}`
             );
         }
 
-        sendBroadcast(ctx, bot, msg);
+        const productId = parseInt(args[1]);
+        const product = productService.getById(productId);
+        if (!product) return ctx.reply('❌ Sản phẩm không tồn tại');
+
+        adminState[ctx.from.id] = { action: 'addstock', productId };
+        ctx.replyWithHTML(
+            `📦 Thêm tài khoản cho: <b>${product.name}</b>\n` +
+            `📊 Kho hiện tại: ${product.stock_count}\n\n` +
+            `👇 Gửi danh sách tài khoản ngay bây giờ (mỗi dòng 1 cái):\n\n` +
+            `<i>Ví dụ:</i>\n` +
+            `<code>email1@outlook.com|pass1|chatgpt_pass1\nemail2@outlook.com|pass2|chatgpt_pass2</code>\n\n` +
+            `Gõ /cancel để hủy.`
+        );
     });
 
     // /viewstock [ID] - View stock details
