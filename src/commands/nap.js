@@ -14,6 +14,7 @@ module.exports = (bot) => {
             const amount = parseInt(text[1]);
             if (amount < 10000) return ctx.reply('❌ Số tiền tối thiểu là 10.000đ');
 
+            // 1. Tạo user và mã thanh toán
             userService.findOrCreate(ctx.from);
             const payment = paymentService.generatePayment(amount);
             topupService.create(ctx.from.id, amount, payment.paymentCode);
@@ -24,17 +25,11 @@ module.exports = (bot) => {
                 `📝 Nội dung CK: <code>${payment.paymentCode}</code>\n\n` +
                 `⏳ Sau khi chuyển khoản, số dư sẽ được cập nhật tự động.`;
 
-            // Gửi ảnh trực tiếp (Không dùng axios)
-            try {
-                await ctx.replyWithPhoto(payment.qrUrl, {
-                    caption: caption,
-                    parse_mode: 'HTML'
-                });
-            } catch (err) {
-                // Nếu lỗi mới gửi link
-                console.error('Lỗi gửi ảnh QR:', err.message);
-                await ctx.replyWithHTML(caption + `\n👉 <a href="${payment.qrUrl}">BẤM VÀO ĐÂY ĐỂ LẤY MÃ QR</a>`);
-            }
+            // 2. Gửi ảnh QR trực tiếp (Không dùng try/catch ẩn, không dùng axios)
+            await ctx.replyWithPhoto(payment.qrUrl, {
+                caption: caption,
+                parse_mode: 'HTML'
+            });
             
         } catch (err) {
             console.error('❌ Lỗi /nap:', err);
