@@ -1,6 +1,8 @@
 const { Telegraf, session } = require('telegraf');
 const config = require('./config');
-
+// Khởi động Webhook Server
+const setupWebhook = require('./webhook');
+setupWebhook(bot);
 // Validate token
 if (!config.BOT_TOKEN || config.BOT_TOKEN === 'your_bot_token_here') {
     console.error('❌ BOT_TOKEN chưa được cấu hình! Hãy cập nhật file .env');
