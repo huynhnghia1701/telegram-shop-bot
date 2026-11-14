@@ -1,10 +1,11 @@
 const orderService = require('../services/orderService');
 const productService = require('../services/productService');
-const userService = require('../services/userService'); // Thêm vào để dùng số dư
+const userService = require('../services/userService');
 const messages = require('../utils/messages');
 const config = require('../config');
-const { Markup } = require('telegraf'); // Thêm vào để tạo nút
-const { formatPrice, postDeliveryKeyboard } = require('../utils/keyboard'); // Thêm formatPrice
+const paymentService = require('../services/paymentService');
+const { Markup } = require('telegraf');
+const { formatPrice, postDeliveryKeyboard } = require('../utils/keyboard');
 
 module.exports = (bot) => {
     // Handle quantity selection: qty_{productId}_{quantity}
@@ -85,12 +86,15 @@ module.exports = (bot) => {
             `📦 Đang giao hàng cho bạn...`
         );
 
-        // Giao hàng tự động
-        const { deliverOrder } = require('./paymentConfirm'); // Gọi lại chính module này
-        const result = await deliverOrder(bot, order.id);
-
-        if (!result.success) {
-            ctx.reply(`❌ Lỗi giao hàng: ${result.error}`);
+        // Giao hàng tự động (Gọi trực tiếp hàm deliverOrder ở dưới, không dùng require)
+        try {
+            const result = await deliverOrder(bot, order.id);
+            if (!result.success) {
+                ctx.reply(`❌ Lỗi giao hàng: ${result.error}`);
+            }
+        } catch (error) {
+            console.error('Lỗi giao hàng:', error);
+            ctx.reply('❌ Đã xảy ra lỗi khi giao hàng, vui lòng liên hệ Admin.');
         }
     });
 
@@ -101,7 +105,6 @@ module.exports = (bot) => {
         const product = productService.getById(productId);
         
         ctx.answerCbQuery('⏳ Đang tạo đơn hàng...');
-        const paymentService = require('../services/paymentService');
         const payment = paymentService.generatePayment(product.price * quantity, 0);
 
         const order = orderService.create(
