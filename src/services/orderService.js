@@ -72,7 +72,9 @@ const orderService = {
   confirmAndDeliver(orderId) {
     const order = this.getById(orderId);
     if (!order) return { success: false, error: 'Đơn hàng không tồn tại' };
-    if (order.status !== 'pending') return { success: false, error: 'Đơn hàng đã được xử lý' };
+   if (order.status !== 'pending' && order.status !== 'paid') {
+    return { success: false, error: 'Đơn hàng đã được xử lý' };
+}
 
     // Get available stock
     const stock = productService.getAvailableStock(order.product_id, order.quantity);
