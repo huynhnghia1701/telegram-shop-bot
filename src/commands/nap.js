@@ -2,7 +2,7 @@ const paymentService = require('../services/paymentService');
 const topupService = require('../services/topupService');
 const userService = require('../services/userService');
 const { formatPrice } = require('../utils/keyboard');
-const axios = require('axios'); // Cần dùng thư viện axios để tải ảnh
+ // Cần dùng thư viện axios để tải ảnh
 
 module.exports = (bot) => {
     bot.command('nap', async (ctx) => {
