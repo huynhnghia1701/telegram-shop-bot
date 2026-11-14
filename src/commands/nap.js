@@ -14,11 +14,16 @@ module.exports = (bot) => {
             const amount = parseInt(text[1]);
             if (amount < 10000) return ctx.reply('❌ Số tiền tối thiểu là 10.000đ');
 
+            // 1. Tạo user
             userService.findOrCreate(ctx.from);
             
+            // 2. Tạo mã QR
             const payment = paymentService.generatePayment(amount);
+            
+            // 3. Lưu Database
             topupService.create(ctx.from.id, amount, payment.paymentCode);
 
+            // 4. Gửi tin nhắn HTML
             const caption = 
                 `💰 <b>NẠP SỐ DƯ</b>\n\n` +
                 `👉 <a href="${payment.qrUrl}">BẤM VÀO ĐÂY ĐỂ LẤY MÃ QR</a>\n\n` +
@@ -29,7 +34,7 @@ module.exports = (bot) => {
             
         } catch (err) {
             console.error('❌ Lỗi /nap:', err);
-            ctx.reply(`❌ Lỗi hệ thống: ${err.message}`); 
+            ctx.reply(`❌ Lỗi hệ thống: ${err.message}`); // In lỗi ra Telegram nếu có
         }
     });
 };
