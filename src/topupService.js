@@ -1,9 +1,6 @@
 const db = require('../database');
 
 const topupService = {
-    /**
-     * Create a pending topup request
-     */
     create(telegramId, amount, paymentCode) {
         const result = db.prepare(`
       INSERT INTO topups (telegram_id, amount, payment_code, status)
@@ -21,10 +18,6 @@ const topupService = {
         return db.prepare('SELECT * FROM topups WHERE payment_code = ?').get(code);
     },
 
-    /**
-     * Find a PENDING topup whose payment_code contains the given suffix
-     * (used because bank transfer content may mangle spaces/hyphens)
-     */
     getPendingBySuffix(suffix) {
         return db.prepare(`
       SELECT * FROM topups
