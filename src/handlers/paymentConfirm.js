@@ -75,18 +75,20 @@ module.exports = (bot) => {
             'BALANCE_PAY'
         );
         
-        // Đánh dấu đã thanh toán
-        orderService.markPaid(order.id);
+        // KHÔNG DÙNG orderService.markPaid() Ở ĐÂY, VÌ HÀM deliverOrder BÊN DƯỚI SẼ TỰ XỬ LÝ
 
         ctx.answerCbQuery('✅ Đã thanh toán bằng số dư!');
+        
+        // Thêm parse_mode: 'HTML' để hiển thị đúng in đậm
         ctx.editMessageText(
             `✅ <b>THANH TOÁN THÀNH CÔNG</b>\n\n` +
             `💰 Đã trừ: <b>${formatPrice(totalPrice)}</b>\n` +
             `💵 Số dư còn lại: <b>${formatPrice(user.balance - totalPrice)}</b>\n\n` +
-            `📦 Đang giao hàng cho bạn...`
+            `📦 Đang giao hàng cho bạn...`,
+            { parse_mode: 'HTML' }
         );
 
-        // Giao hàng tự động (Gọi trực tiếp hàm deliverOrder ở dưới, không dùng require)
+        // Giao hàng tự động (Gọi trực tiếp hàm deliverOrder ở dưới)
         try {
             const result = await deliverOrder(bot, order.id);
             if (!result.success) {
