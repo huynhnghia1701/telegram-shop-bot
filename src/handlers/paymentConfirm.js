@@ -56,7 +56,7 @@ module.exports = (bot) => {
             if (!user || user.balance < totalPrice) return ctx.answerCbQuery('❌ Số dư không đủ!');
 
             userService.deductBalance(ctx.from.id, totalPrice);
-            const order = orderService.create(ctx.from.id, product.id, quantity, totalPrice, 'BALANCE_PAY');
+            const order = orderService.create(ctx.from.id, product.id, quantity, totalPrice, 'BALANCE_' + Date.now());
             
             await ctx.answerCbQuery('✅ Đã thanh toán!');
             // Đã thêm parse_mode: 'HTML' để hết lỗi font
