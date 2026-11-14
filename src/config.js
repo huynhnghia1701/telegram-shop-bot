@@ -24,6 +24,6 @@ module.exports = {
     SEPAY_API_KEY: process.env.SEPAY_API_KEY || '',
 
     // Shop
-    SHOP_NAME: process.env.SHOP_NAME || 'Starizzi Shop',
-    SUPPORT_CONTACT: process.env.SUPPORT_CONTACT || '@starizzi_support',
+    SHOP_NAME: process.env.SHOP_NAME || 'Telegram Bot',
+    SUPPORT_CONTACT: process.env.SUPPORT_CONTACT || '@kcdmd2',
 };
