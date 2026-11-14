@@ -38,9 +38,8 @@ module.exports = (bot) => {
     });
 
     // 2. Thanh toán bằng số dư
-    // 2. Thanh toán bằng số dư
     bot.action(/^pay_balance_(\d+)_(\d+)$/, async (ctx) => {
-        try { // <-- Try lớn bọc ngoài
+        try {
             const productId = parseInt(ctx.match[1]);
             const quantity = parseInt(ctx.match[2]);
             const product = productService.getById(productId);
@@ -50,11 +49,8 @@ module.exports = (bot) => {
             if (!user || user.balance < totalPrice) return ctx.answerCbQuery('❌ Số dư không đủ!');
 
             userService.deductBalance(ctx.from.id, totalPrice);
-            
-            // Tạo đơn hàng
             const order = orderService.create(ctx.from.id, product.id, quantity, totalPrice, 'BALANCE_PAY');
             
-            // Báo thành công cho khách (Đã sửa lỗi font)
             await ctx.answerCbQuery('✅ Đã thanh toán!');
             await ctx.editMessageText(
                 `✅ <b>THANH TOÁN THÀNH CÔNG</b>\n\n` +
@@ -64,25 +60,12 @@ module.exports = (bot) => {
                 { parse_mode: 'HTML' }
             );
 
-            // BỎ ĐOẠN TRY/CATCH BẠN HỎI VÀO ĐÂY NÀY:
             try {
                 const result = await deliverOrder(bot, order.id);
-                if (!result.success) {
-                    ctx.reply(`❌ Lỗi giao hàng: ${result.error}`);
-                }
+                if (!result.success) ctx.reply(`❌ Lỗi giao hàng: ${result.error}`);
             } catch (error) {
-                console.error('Lỗi DB:', error);
                 ctx.reply(`❌ Lỗi chi tiết: ${error.message}`);
             }
-
-        } catch (error) { // <-- Catch của Try lớn
-            ctx.reply(`❌ Lỗi thanh toán: ${error.message}`);
-        }
-    });
-
-            // Gọi hàm giao hàng
-            await deliverOrder(bot, order.id);
-
         } catch (error) {
             ctx.reply(`❌ Lỗi thanh toán: ${error.message}`);
         }
@@ -107,21 +90,15 @@ module.exports = (bot) => {
     bot.action(/^cancel_order_(\d+)$/, (ctx) => { orderService.cancel(parseInt(ctx.match[1])); ctx.answerCbQuery('❌ Đã hủy'); ctx.reply('❌ Đã hủy đơn.'); });
 };
 
-// ═══════════════════════════════════════
-// HÀM GIAO HÀNG VÀ BÁO ADMIN
-// ═══════════════════════════════════════
+// Hàm giao hàng
 async function deliverOrder(bot, orderId) {
-    // Gọi hàm từ orderService
     const result = orderService.confirmAndDeliver(orderId);
 
-    if (!result.success) {
-        return result;
-    }
+    if (!result.success) return result;
 
     const order = result.order;
     const product = productService.getById(order.product_id);
 
-    // 1. Gửi tài khoản cho khách
     try {
         await bot.telegram.sendMessage(order.user_id, messages.orderSuccessNotify(order.quantity), { parse_mode: 'HTML' });
         await bot.telegram.sendMessage(order.user_id, messages.orderSuccess(product, order.quantity, result.accounts), {
@@ -132,7 +109,6 @@ async function deliverOrder(bot, orderId) {
         console.error('Lỗi gửi khách:', err.message);
     }
 
-    // 2. Báo cho Admin
     try {
         const db = require('../database');
         const buyer = db.prepare('SELECT full_name, username FROM users WHERE telegram_id = ?').get(order.user_id);
