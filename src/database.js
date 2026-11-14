@@ -92,10 +92,7 @@ if (catCount.c === 0) {
 
   // Insert categories
   const insertCat = db.prepare('INSERT INTO categories (name, emoji, sort_order) VALUES (?, ?, ?)');
-  insertCat.run('ChatGPT', '🤖', 1);
-  insertCat.run('Capcut', '🎬', 2);
-  insertCat.run('Dịch vụ nâng cấp', '⚡', 3);
-
+  insertCat.run('Telegram', '🤖', 1);
   // Insert products
   const insertProd = db.prepare(`
     INSERT INTO products (category_id, name, price, emoji, promotion, contact_only)
@@ -103,16 +100,8 @@ if (catCount.c === 0) {
   `);
 
   // ChatGPT category (id=1)
-  insertProd.run(1, 'ChatGPT Plus 1 tháng bhf', 8000, '📦', '🎁 Mua 10 tặng 2', 0);
-  insertProd.run(1, 'ChatGPT Business (5 slot) bhf', 20000, '📦', null, 0);
-  insertProd.run(1, 'ChatGPT Plus 1thang full hotmail bhf', 8000, '📦', '🎁 Mua 10 tặng 2', 0);
-  insertProd.run(1, 'CHAT GPT GO 1 năm ( KBH )', 55000, '📦', null, 0);
-  insertProd.run(1, 'Nâng chính chủ ChatGPT Plus 1 tháng', 15000, '📦', null, 1);
-  insertProd.run(1, 'Gia Hạn ChatGPT Plus 1 tháng', 60000, '📦', null, 1);
-  insertProd.run(1, 'CDK GPT Plus 12 tháng', 650000, '📦', null, 1);
-
-  // Capcut category (id=2)
-  insertProd.run(2, 'Capcut Pro Team 35D bhf', 12000, '📦', null, 0);
+  
+  insertProd.run(1, 'TeleGram', 650000, '📦', null, 1);
 
   console.log('✅ Seed data created!');
 }
