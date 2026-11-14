@@ -1,11 +1,13 @@
 const orderService = require('../services/orderService');
 const productService = require('../services/productService');
+const userService = require('../services/userService'); // Thêm vào để dùng số dư
 const messages = require('../utils/messages');
-const { postDeliveryKeyboard } = require('../utils/keyboard');
+const config = require('../config');
+const { Markup } = require('telegraf'); // Thêm vào để tạo nút
+const { formatPrice, postDeliveryKeyboard } = require('../utils/keyboard'); // Thêm formatPrice
 
 module.exports = (bot) => {
-    // User clicks "Đã thanh toán" button
-   // Handle quantity selection: qty_{productId}_{quantity}
+    // Handle quantity selection: qty_{productId}_{quantity}
     bot.action(/^qty_(\d+)_(\d+)$/, async (ctx) => {
         const productId = parseInt(ctx.match[1]);
         const quantity = parseInt(ctx.match[2]);
@@ -15,7 +17,6 @@ module.exports = (bot) => {
             return ctx.answerCbQuery('❌ Sản phẩm không tồn tại');
         }
 
-        // Check stock availability (display_stock includes sheet_stock fallback)
         const availableStock = product.display_stock || product.stock_count;
         if (availableStock < quantity) {
             return ctx.answerCbQuery(`❌ Chỉ còn ${availableStock} sản phẩm`);
@@ -23,10 +24,10 @@ module.exports = (bot) => {
 
         const totalPrice = product.price * quantity;
         
-        // Lấy thông tin user để kiểm tra số dư
+        // Đảm bảo user đã có trong DB để lấy số dư
+        userService.findOrCreate(ctx.from);
         const user = userService.get(ctx.from.id);
         
-        // Tạo nút bấm
         const buttons = [];
         
         // Nếu khách có đủ tiền, hiện nút "Thanh toán bằng số dư"
@@ -57,14 +58,14 @@ module.exports = (bot) => {
 
         const user = userService.get(ctx.from.id);
 
-        if (user.balance < totalPrice) {
+        if (!user || user.balance < totalPrice) {
             return ctx.answerCbQuery('❌ Số dư không đủ!');
         }
 
         // Trừ tiền
         userService.deductBalance(ctx.from.id, totalPrice);
 
-        // Tạo đơn hàng (trạng thái đã thanh toán)
+        // Tạo đơn hàng
         const order = orderService.create(
             ctx.from.id,
             product.id,
@@ -72,6 +73,8 @@ module.exports = (bot) => {
             totalPrice,
             'BALANCE_PAY'
         );
+        
+        // Đánh dấu đã thanh toán
         orderService.markPaid(order.id);
 
         ctx.answerCbQuery('✅ Đã thanh toán bằng số dư!');
@@ -82,14 +85,55 @@ module.exports = (bot) => {
             `📦 Đang giao hàng cho bạn...`
         );
 
-        // Tự động giao hàng
-        const { deliverOrder } = require('./paymentConfirm');
+        // Giao hàng tự động
+        const { deliverOrder } = require('./paymentConfirm'); // Gọi lại chính module này
         const result = await deliverOrder(bot, order.id);
 
         if (!result.success) {
             ctx.reply(`❌ Lỗi giao hàng: ${result.error}`);
         }
-    }); {
+    });
+
+    // Nút thanh toán qua ngân hàng
+    bot.action(/^pay_bank_(\d+)_(\d+)$/, async (ctx) => {
+        const productId = parseInt(ctx.match[1]);
+        const quantity = parseInt(ctx.match[2]);
+        const product = productService.getById(productId);
+        
+        ctx.answerCbQuery('⏳ Đang tạo đơn hàng...');
+        const paymentService = require('../services/paymentService');
+        const payment = paymentService.generatePayment(product.price * quantity, 0);
+
+        const order = orderService.create(
+            ctx.from.id,
+            product.id,
+            quantity,
+            product.price * quantity,
+            payment.paymentCode
+        );
+
+        const caption =
+            `⏳ <b>Đang chờ thanh toán ${formatPrice(product.price * quantity)}...</b>\n\n` +
+            `Quét mã QR hoặc bấm vào link dưới đây để chuyển khoản:\n` +
+            `👉 <a href="${payment.qrUrl}">BẤM VÀO ĐÂY ĐỂ LẤY MÃ QR</a>\n\n` +
+            `💰 <b>THANH TOÁN ĐƠN HÀNG</b>\n\n` +
+            `📦 Sản phẩm: ${product.name}\n` +
+            `📊 Số lượng: ${quantity}\n` +
+            `💵 Tổng tiền: <b>${formatPrice(product.price * quantity)}</b>\n\n` +
+            `━━━━━━━━━━━━━━━━━\n\n` +
+            `🏦 Quét mã QR để chuyển khoản\n` +
+            `├ Số tiền: <b>${formatPrice(product.price * quantity)}</b>\n` +
+            `└ Nội dung CK: <code>${payment.paymentCode}</code>\n\n` +
+            `⏰ QR hiệu lực trong <b>15 phút</b>\n` +
+            `🚫 <b>KHÔNG</b> thay đổi nội dung chuyển khoản`;
+
+        await ctx.replyWithHTML(caption, Markup.inlineKeyboard([
+            [Markup.button.callback('❌ Hủy thanh toán', `cancel_order_${order.id}`)],
+        ]));
+    });
+
+    // User clicks "Đã thanh toán" button
+    bot.action(/^check_paid_(\d+)$/, async (ctx) => {
         const orderId = parseInt(ctx.match[1]);
         const order = orderService.getById(orderId);
 
@@ -105,7 +149,6 @@ module.exports = (bot) => {
             return ctx.answerCbQuery('❌ Đơn hàng đã bị hủy');
         }
 
-        // For now, show pending message (admin needs to confirm)
         ctx.answerCbQuery();
         ctx.replyWithHTML(messages.paymentPending);
     });
@@ -119,10 +162,22 @@ module.exports = (bot) => {
     // Buy again callback
     bot.action('buy_again', (ctx) => {
         ctx.answerCbQuery();
-        // Trigger product listing
         const products = productService.getAll();
         const { productListKeyboard } = require('../utils/keyboard');
         ctx.reply(messages.productHeader, productListKeyboard(products));
+    });
+
+    // Handle cancel order
+    bot.action('cancel_order', (ctx) => {
+        ctx.answerCbQuery('❌ Đã hủy');
+        ctx.editMessageText('❌ Đơn hàng đã bị hủy.');
+    });
+
+    bot.action(/^cancel_order_(\d+)$/, (ctx) => {
+        const orderId = parseInt(ctx.match[1]);
+        orderService.cancel(orderId);
+        ctx.answerCbQuery('❌ Đã hủy đơn hàng');
+        ctx.reply('❌ Đơn hàng đã bị hủy.');
     });
 };
 
