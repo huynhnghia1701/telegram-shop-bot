@@ -34,9 +34,14 @@ module.exports = (bot) => {
                     caption: caption,
                     parse_mode: 'HTML'
                 });
-            } catch (imgError) {
-                // Nếu tải ảnh lỗi, tự động gửi link dự phòng
-                console.error('Lỗi tải ảnh QR:', imgError.message);
+            } // Gửi ảnh trực tiếp (Không dùng axios)
+            try {
+                await ctx.replyWithPhoto(payment.qrUrl, {
+                    caption: caption,
+                    parse_mode: 'HTML'
+                });
+            } catch (err) {
+                // Nếu lỗi mới gửi link
                 await ctx.replyWithHTML(caption + `\n👉 <a href="${payment.qrUrl}">BẤM VÀO ĐÂY ĐỂ LẤY MÃ QR</a>`);
             }
             
