@@ -48,12 +48,17 @@ module.exports = (bot) => {
 
             if (!user || user.balance < totalPrice) return ctx.answerCbQuery('❌ Số dư không đủ!');
 
+            // Trừ tiền và tạo đơn
             userService.deductBalance(ctx.from.id, totalPrice);
             const order = orderService.create(ctx.from.id, product.id, quantity, totalPrice, 'BALANCE_PAY');
             
-            ctx.answerCbQuery('✅ Đã thanh toán!');
-            ctx.editMessageText(
-                `✅ <b>THANH TOÁN THÀNH CÔNG</b>\n\n💰 Đã trừ: <b>${formatPrice(totalPrice)}</b>\n💵 Còn lại: <b>${formatPrice(user.balance - totalPrice)}</b>\n\n📦 Đang giao hàng...`,
+            // SỬA LỖI FONT TẠI ĐÂY (Thêm parse_mode)
+            await ctx.answerCbQuery('✅ Đã thanh toán!');
+            await ctx.editMessageText(
+                `✅ <b>THANH TOÁN THÀNH CÔNG</b>\n\n` +
+                `💰 Đã trừ: <b>${formatPrice(totalPrice)}</b>\n` +
+                `💵 Còn lại: <b>${formatPrice(user.balance - totalPrice)}</b>\n\n` +
+                `📦 Đang giao hàng...`,
                 { parse_mode: 'HTML' }
             );
 
@@ -61,7 +66,6 @@ module.exports = (bot) => {
             await deliverOrder(bot, order.id);
 
         } catch (error) {
-            console.error(error);
             ctx.reply(`❌ Lỗi thanh toán: ${error.message}`);
         }
     });
@@ -89,11 +93,10 @@ module.exports = (bot) => {
 // HÀM GIAO HÀNG VÀ BÁO ADMIN
 // ═══════════════════════════════════════
 async function deliverOrder(bot, orderId) {
+    // Gọi hàm từ orderService
     const result = orderService.confirmAndDeliver(orderId);
 
     if (!result.success) {
-        // Nếu lỗi (vd: hết hàng), báo cho khách
-        await bot.telegram.sendMessage(result.order.user_id, `❌ Lỗi giao hàng: ${result.error}`);
         return result;
     }
 
@@ -108,10 +111,10 @@ async function deliverOrder(bot, orderId) {
             ...postDeliveryKeyboard(),
         });
     } catch (err) {
-        console.error(`Lỗi gửi cho khách:`, err.message);
+        console.error('Lỗi gửi khách:', err.message);
     }
 
-    // 2. Báo cho Admin (Bạn)
+    // 2. Báo cho Admin
     try {
         const db = require('../database');
         const buyer = db.prepare('SELECT full_name, username FROM users WHERE telegram_id = ?').get(order.user_id);
@@ -127,7 +130,7 @@ async function deliverOrder(bot, orderId) {
 
         await bot.telegram.sendMessage(config.ADMIN_ID, adminMsg, { parse_mode: 'HTML' });
     } catch (err) {
-        console.error('Lỗi gửi cho Admin:', err.message);
+        console.error('Lỗi gửi Admin:', err.message);
     }
 
     return result;
