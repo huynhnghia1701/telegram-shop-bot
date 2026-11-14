@@ -9,47 +9,6 @@ const { formatPrice, postDeliveryKeyboard } = require('../utils/keyboard');
 
 module.exports = (bot) => {
     // Handle quantity selection: qty_{productId}_{quantity}
-    bot.action(/^qty_(\d+)_(\d+)$/, async (ctx) => {
-        const productId = parseInt(ctx.match[1]);
-        const quantity = parseInt(ctx.match[2]);
-        const product = productService.getById(productId);
-
-        if (!product) {
-            return ctx.answerCbQuery('❌ Sản phẩm không tồn tại');
-        }
-
-        const availableStock = product.display_stock || product.stock_count;
-        if (availableStock < quantity) {
-            return ctx.answerCbQuery(`❌ Chỉ còn ${availableStock} sản phẩm`);
-        }
-
-        const totalPrice = product.price * quantity;
-        
-        // Đảm bảo user đã có trong DB để lấy số dư
-        userService.findOrCreate(ctx.from);
-        const user = userService.get(ctx.from.id);
-        
-        const buttons = [];
-        
-        // Nếu khách có đủ tiền, hiện nút "Thanh toán bằng số dư"
-        if (user && user.balance >= totalPrice) {
-            buttons.push([Markup.button.callback(`💰 Thanh toán bằng số dư (${formatPrice(user.balance)})`, `pay_balance_${productId}_${quantity}`)]);
-        }
-        
-        // Nút thanh toán qua ngân hàng (chuyển khoản)
-        buttons.push([Markup.button.callback('🏦 Thanh toán qua ngân hàng', `pay_bank_${productId}_${quantity}`)]);
-        buttons.push([Markup.button.callback('❌ Hủy', 'cancel_order')]);
-
-        ctx.replyWithHTML(
-            `📦 <b>${product.name}</b>\n` +
-            `📊 Số lượng: ${quantity}\n` +
-            `💵 Tổng tiền: <b>${formatPrice(totalPrice)}</b>\n\n` +
-            `💰 Số dư của bạn: <b>${formatPrice(user ? user.balance : 0)}</b>\n\n` +
-            `👇 Chọn phương thức thanh toán:`,
-            Markup.inlineKeyboard(buttons)
-        );
-    });
-
     // Xử lý thanh toán bằng số dư
     bot.action(/^pay_balance_(\d+)_(\d+)$/, async (ctx) => {
         const productId = parseInt(ctx.match[1]);
@@ -75,11 +34,10 @@ module.exports = (bot) => {
             'BALANCE_PAY'
         );
         
-        // KHÔNG DÙNG orderService.markPaid() Ở ĐÂY, VÌ HÀM deliverOrder BÊN DƯỚI SẼ TỰ XỬ LÝ
+        // TUYỆT ĐỐI KHÔNG GỌI orderService.markPaid() Ở ĐÂY
 
         ctx.answerCbQuery('✅ Đã thanh toán bằng số dư!');
         
-        // Thêm parse_mode: 'HTML' để hiển thị đúng in đậm
         ctx.editMessageText(
             `✅ <b>THANH TOÁN THÀNH CÔNG</b>\n\n` +
             `💰 Đã trừ: <b>${formatPrice(totalPrice)}</b>\n` +
@@ -87,6 +45,18 @@ module.exports = (bot) => {
             `📦 Đang giao hàng cho bạn...`,
             { parse_mode: 'HTML' }
         );
+
+        // Giao hàng tự động
+        try {
+            const result = await deliverOrder(bot, order.id);
+            if (!result.success) {
+                ctx.reply(`❌ Lỗi giao hàng: ${result.error}`);
+            }
+        } catch (error) {
+            console.error('Lỗi giao hàng:', error);
+            ctx.reply('❌ Đã xảy ra lỗi khi giao hàng, vui lòng liên hệ Admin.');
+        }
+    });
 
         // Giao hàng tự động (Gọi trực tiếp hàm deliverOrder ở dưới)
         try {
