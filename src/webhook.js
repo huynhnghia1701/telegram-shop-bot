@@ -131,4 +131,6 @@ const PORT = process.env.PORT || config.WEBHOOK_PORT;
         console.log(`🌐 Webhook server đang lắng nghe tại port ${PORT}`);
         console.log(`🔗 SePay webhook URL: http://<your-domain>:${PORT}/webhook/sepay`);
     });
-    
+} // <-- Thêm dấu ngoặc nhọn này để đóng hàm setupWebhook(bot)
+
+module.exports = setupWebhook; // <-- Thêm dòng này để bot.js có thể gọi được
