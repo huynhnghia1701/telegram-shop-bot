@@ -37,10 +37,11 @@ module.exports = (bot) => {
                 const response = await axios.get(payment.qrUrl, { responseType: 'arraybuffer' });
                 const imageBuffer = Buffer.from(response.data, 'binary');
 
-                await ctx.replyWithPhoto({ source: imageBuffer }, {
-                    caption: caption,
-                    parse_mode: 'HTML'
-                });
+               // Gửi ảnh trực tiếp bằng URL có sẵn của Telegram
+            await ctx.replyWithPhoto(payment.qrUrl, {
+                caption: caption,
+                parse_mode: 'HTML'
+            });
             } catch (imgError) {
                 // Nếu tải ảnh lỗi, tự động fallback gửi link
                 console.error('Lỗi tải ảnh QR, chuyển sang gửi link:', imgError.message);
