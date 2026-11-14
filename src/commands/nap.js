@@ -31,10 +31,10 @@ module.exports = (bot) => {
                 const imageBuffer = Buffer.from(response.data, 'binary');
 
                 // Gửi ảnh từ Buffer (Telegram sẽ nhận ngay lập tức, không cần chờ mạng)
-                await ctx.replyWithPhoto({ source: imageBuffer }, {
-                    caption: caption,
-                    parse_mode: 'HTML'
-                });
+                // Chỉ gửi dạng HTML kèm link QR
+            await ctx.replyWithHTML(
+                caption + `\n👉 <a href="${payment.qrUrl}">BẤM VÀO ĐÂY ĐỂ LẤY MÃ QR</a>`
+            );
             } catch (imgError) {
                 // Nếu VietQR sập hoàn toàn, gửi link dự phòng
                 console.error('Không tải được ảnh QR:', imgError.message);
