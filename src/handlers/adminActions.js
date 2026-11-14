@@ -232,9 +232,9 @@ module.exports = (bot) => {
     });
 
     // Lệnh /order1 mới được thêm vào đây
-    bot.command('order1', adminOnly, async (ctx) => {
+   bot.command('order1', adminOnly, async (ctx) => {
         const args = ctx.message.text.split(' ');
-        if (args.length < 2) return ctx.replyWithHTML('Cách dùng: <code>/order1 [user_id]</code>\nVí dụ: <code>/order1 7979928097</code>');
+        if (args.length < 2) return ctx.replyWithHTML('Cách dùng: <code>/order1 [user_id]</code>');
 
         const userId = parseInt(args[1]);
         const db = require('../database');
@@ -264,9 +264,10 @@ module.exports = (bot) => {
             text += `Sản phẩm: ${order.product_name} × ${order.quantity}\n`;
             text += `Số tiền: ${formatPrice(order.total_price)}\n`;
             
+            // SỬA Ở ĐÂY: Đổi user_id thành sold_to
             const accounts = db.prepare(`
                 SELECT data FROM stock 
-                WHERE product_id = ? AND user_id = ? AND is_sold = 1 
+                WHERE product_id = ? AND sold_to = ? AND is_sold = 1 
                 ORDER BY id DESC LIMIT ?
             `).all(order.product_id, order.user_id, order.quantity);
 
