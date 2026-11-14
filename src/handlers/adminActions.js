@@ -57,7 +57,8 @@ module.exports = (bot) => {
             `/pending — Xem đơn chờ thanh toán\n` +
             `/confirm [orderID] — Xác nhận & giao hàng\n` +
             `/cancelorder [orderID] — Hủy đơn\n` +
-            `/orders — Xem tất cả đơn hàng\n\n` +
+            `/orders — Xem tất cả đơn hàng\n` +
+            `/vieworder [orderID] — Xem & gửi lại tài khoản\n\n` +
             `🏦 <b>CÀI ĐẶT:</b>\n` +
             `/setbank — Xem thông tin ngân hàng\n` +
             `/setshop — Xem/sửa thông tin shop\n\n` +
@@ -262,7 +263,6 @@ module.exports = (bot) => {
     bot.command('addstock', adminOnly, (ctx) => {
         const args = ctx.message.text.split(' ');
         if (args.length < 2) {
-            // List products so admin can see IDs
             const products = productService.getAll();
             let list = products.map((p) => `  #${p.id} ${p.name} (kho: ${p.stock_count})`).join('\n');
             return ctx.replyWithHTML(
@@ -277,7 +277,6 @@ module.exports = (bot) => {
         const product = productService.getById(productId);
         if (!product) return ctx.reply('❌ Sản phẩm không tồn tại');
 
-        // Set admin waiting state
         adminState[ctx.from.id] = { action: 'addstock', productId };
         ctx.replyWithHTML(
             `📦 Thêm tài khoản cho: <b>${product.name}</b>\n` +
@@ -393,11 +392,100 @@ module.exports = (bot) => {
         ctx.replyWithHTML(text);
     });
 
+    // /vieworder [ID] - Xem chi tiết tài khoản của đơn hàng và gửi lại cho khách
+    bot.command('vieworder', adminOnly, async (ctx) => {
+        const args = ctx.message.text.split(' ');
+        if (args.length < 2) return ctx.replyWithHTML('Cách dùng: <code>/vieworder [orderID]</code>');
+
+        const orderId = parseInt(args[1]);
+        const db = require('../database');
+        
+        // Lấy thông tin đơn hàng
+        const order = db.prepare(`
+            SELECT o.*, p.name as product_name, u.full_name as user_name, u.telegram_id
+            FROM orders o
+            JOIN products p ON o.product_id = p.id
+            JOIN users u ON o.user_id = u.telegram_id
+            WHERE o.id = ?
+        `).get(orderId);
+
+        if (!order) return ctx.reply('❌ Đơn hàng không tồn tại');
+
+        // Lấy danh sách tài khoản đã bán cho đơn hàng này
+        const accounts = db.prepare(`
+            SELECT data FROM stock 
+            WHERE product_id = ? AND user_id = ? AND is_sold = 1 
+            ORDER BY id DESC LIMIT ?
+        `).all(order.product_id, order.user_id, order.quantity);
+
+        if (accounts.length === 0) {
+            return ctx.replyWithHTML(
+                `📌 <b>ĐƠN HÀNG #${order.id}</b>\n` +
+                `👤 Khách: ${order.user_name} (<code>${order.user_id}</code>)\n` +
+                `📦 SP: ${order.product_name}\n\n` +
+                `⚠️ Không tìm thấy thông tin tài khoản của đơn này trong kho (có thể đã bị xóa).`
+            );
+        }
+
+        let text = `📌 <b>CHI TIẾT ĐƠN HÀNG #${order.id}</b>\n\n` +
+            `👤 Khách: <b>${order.user_name}</b> (<code>${order.user_id}</code>)\n` +
+            `📦 SP: ${order.product_name} × ${order.quantity}\n` +
+            `📅 Ngày mua: ${order.created_at}\n\n` +
+            `🔑 <b>Tài khoản đã giao:</b>\n`;
+        
+        accounts.forEach((acc, i) => {
+            text += `${i + 1}. <code>${acc.data}</code>\n`;
+        });
+
+        ctx.replyWithHTML(text, Markup.inlineKeyboard([
+            [Markup.button.callback('📤 Gửi lại cho khách', `resend_order_${order.id}`)]
+        ]));
+    });
+
+    // Xử lý nút Gửi lại cho khách
+    bot.action(/^resend_order_(\d+)$/, async (ctx) => {
+        if (!isAdmin(ctx)) return ctx.answerCbQuery('⛔');
+        
+        const orderId = parseInt(ctx.match[1]);
+        const db = require('../database');
+        const order = db.prepare(`
+            SELECT o.*, p.name as product_name, u.telegram_id
+            FROM orders o
+            JOIN products p ON o.product_id = p.id
+            JOIN users u ON o.user_id = u.telegram_id
+            WHERE o.id = ?
+        `).get(orderId);
+
+        if (!order) return ctx.answerCbQuery('❌ Không tìm thấy đơn');
+
+        const accounts = db.prepare(`
+            SELECT data FROM stock 
+            WHERE product_id = ? AND user_id = ? AND is_sold = 1 
+            ORDER BY id DESC LIMIT ?
+        `).all(order.product_id, order.user_id, order.quantity);
+
+        let customerMsg = 
+            `📦 <b>GỬI LẠI THÔNG TIN ĐƠN HÀNG #${orderId}</b>\n\n` +
+            `Sản phẩm: ${order.product_name} × ${order.quantity}\n\n` +
+            `🔑 <b>Thông tin tài khoản:</b>\n`;
+        
+        accounts.forEach((acc, i) => {
+            customerMsg += `${i + 1}. <code>${acc.data}</code>\n`;
+        });
+
+        try {
+            await bot.telegram.sendMessage(order.telegram_id, customerMsg, { parse_mode: 'HTML' });
+            ctx.answerCbQuery('✅ Đã gửi lại cho khách!');
+        } catch (err) {
+            ctx.answerCbQuery('❌ Lỗi gửi tin nhắn (Khách có thể đã block bot).', { show_alert: true });
+        }
+    });
+
     // ═══════════════════════════════════════
     // CÀI ĐẶT THANH TOÁN / SHOP
     // ═══════════════════════════════════════
 
-    // /setbank - View bank info (fixed to Techcombank)
+    // /setbank - View bank info
     bot.command('setbank', adminOnly, (ctx) => {
         ctx.replyWithHTML(
             `🏦 <b>THÔNG TIN NGÂN HÀNG</b>\n\n` +
@@ -438,11 +526,11 @@ module.exports = (bot) => {
 
         ctx.replyWithHTML(`✅ Đã cập nhật:\n├ Shop: <b>${shopName}</b>\n└ Hỗ trợ: ${support}`);
     });
-// ═══════════════════════════════════════
-    // QUẢN LÝ SỐ DƯ USER (MỚI THÊM)
+
+    // ═══════════════════════════════════════
+    // QUẢN LÝ SỐ DƯ USER
     // ═══════════════════════════════════════
 
-    // /setbalance [user_id] [số_tiền] - Set số dư chính xác
     bot.command('setbalance', adminOnly, (ctx) => {
         const args = ctx.message.text.split(' ');
         if (args.length < 3) {
@@ -465,9 +553,6 @@ module.exports = (bot) => {
 
         const oldBalance = user.balance;
         userService.updateBalance(userId, amount);
-        
-        // (Tùy chọn) Ghi log nếu bạn có module logger
-        // logger.log(`Admin ${ctx.from.id} set balance user ${userId} thành ${amount}`);
 
         ctx.replyWithHTML(
             `✅ <b>ĐÃ CẬP NHẬT SỐ DƯ</b>\n\n` +
@@ -476,11 +561,9 @@ module.exports = (bot) => {
             `💰 Số dư mới: <b>${formatPrice(amount)}</b>`
         );
 
-        // (Tùy chọn) Báo cho user biết
         bot.telegram.sendMessage(userId, `💰 Số dư tài khoản của bạn đã được Admin cập nhật thành: <b>${formatPrice(amount)}</b>`, { parse_mode: 'HTML' }).catch(() => {});
     });
 
-    // /addbalance [user_id] [số_tiền] - Cộng/Trừ tiền
     bot.command('addbalance', adminOnly, (ctx) => {
         const args = ctx.message.text.split(' ');
         if (args.length < 3) {
@@ -493,7 +576,7 @@ module.exports = (bot) => {
         }
 
         const userId = parseInt(args[1]);
-        const amount = parseInt(args[2]); // Có thể là số âm
+        const amount = parseInt(args[2]);
 
         if (isNaN(userId) || isNaN(amount)) {
             return ctx.reply('❌ User ID hoặc số tiền không hợp lệ.');
@@ -520,16 +603,15 @@ module.exports = (bot) => {
             `💰 Số dư mới: <b>${formatPrice(newBalance)}</b>`
         );
     });
+
     // ═══════════════════════════════════════
     // THỐNG KÊ & USERS
     // ═══════════════════════════════════════
 
-    // /stats - Detailed stats
     bot.command('stats', adminOnly, (ctx) => {
         showStats(ctx);
     });
 
-    // /users - List users
     bot.command('users', adminOnly, (ctx) => {
         const db = require('../database');
         const users = db.prepare('SELECT * FROM users ORDER BY created_at DESC LIMIT 20').all();
@@ -544,7 +626,6 @@ module.exports = (bot) => {
         ctx.replyWithHTML(text);
     });
 
-    // /broadcast - Send message to all users
     bot.command('broadcast', adminOnly, (ctx) => {
         const msg = ctx.message.text.replace('/broadcast', '').trim();
 
@@ -554,212 +635,4 @@ module.exports = (bot) => {
                 `📢 <b>GỬI THÔNG BÁO</b>\n\n` +
                 `Gửi nội dung thông báo ngay bây giờ.\n` +
                 `Hỗ trợ HTML formatting.\n\n` +
-                `Gõ /cancel để hủy.`
-            );
-        }
-
-        sendBroadcast(ctx, bot, msg);
-    });
-
-    // /cancel - Cancel current admin action
-    bot.command('cancel', (ctx) => {
-        if (adminState[ctx.from.id]) {
-            delete adminState[ctx.from.id];
-            ctx.reply('❌ Đã hủy thao tác.');
-        }
-    });
-
-    // ═══════════════════════════════════════
-    // TEXT HANDLER - for multi-step admin flows
-    // ═══════════════════════════════════════
-    bot.on('text', async (ctx, next) => {
-        if (!isAdmin(ctx)) return next();
-
-        const state = adminState[ctx.from.id];
-        if (!state) return next();
-
-        // Handle addstock text input
-        if (state.action === 'addstock') {
-            delete adminState[ctx.from.id];
-
-            const lines = ctx.message.text.split('\n').filter((l) => l.trim());
-            if (lines.length === 0) return ctx.reply('❌ Không có dữ liệu.');
-
-            productService.addStock(state.productId, lines);
-            const product = productService.getById(state.productId);
-
-            ctx.replyWithHTML(
-                `✅ <b>Đã thêm ${lines.length} tài khoản!</b>\n\n` +
-                `├ Sản phẩm: ${product.name}\n` +
-                `└ 📦 Tồn kho: <b>${product.stock_count}</b>`
-            );
-            return;
-        }
-
-        // Handle broadcast text input
-        if (state.action === 'broadcast') {
-            delete adminState[ctx.from.id];
-            sendBroadcast(ctx, bot, ctx.message.text);
-            return;
-        }
-
-        // Handle manual delivery: admin provides account info
-        if (state.action === 'deliver_order') {
-            delete adminState[ctx.from.id];
-
-            const accountData = ctx.message.text.trim();
-            const accounts = accountData.split('\n').filter((l) => l.trim());
-
-            // Mark order as delivered
-            orderService.manualDeliver(state.orderId);
-
-            // Decrease sheet_stock in DB
-            const db = require('../database');
-            db.prepare('UPDATE products SET sheet_stock = MAX(sheet_stock - ?, 0) WHERE id = (SELECT product_id FROM orders WHERE id = ?)').run(state.quantity, state.orderId);
-
-            // Build success message for customer
-            let customerMsg =
-                `✅ <b>ĐƠN HÀNG THÀNH CÔNG!</b>\n\n` +
-                `📦 ${state.productName} × ${state.quantity}\n\n` +
-                `🔑 <b>Thông tin tài khoản:</b>\n`;
-
-            accounts.forEach((acc, i) => {
-                customerMsg += `${i + 1})\n<code>${acc}</code>\n`;
-            });
-
-            customerMsg += `\n📖 <b>Hướng dẫn:</b> maill | passmail | passchatgpt\n` +
-                `log vào outlook.com để lấy code nha các bạn`;
-
-            // Send to customer
-            try {
-                await bot.telegram.sendMessage(state.userId, customerMsg, { parse_mode: 'HTML' });
-                ctx.replyWithHTML(
-                    `✅ <b>Đã giao hàng đơn #${state.orderId}!</b>\n\n` +
-                    `📦 ${state.productName} × ${state.quantity}\n` +
-                    `👤 Đã gửi cho khách: <code>${state.userId}</code>`
-                );
-            } catch (err) {
-                ctx.replyWithHTML(`❌ Không gửi được cho khách: ${err.message}`);
-            }
-            return;
-        }
-
-        return next();
-    });
-
-    // ═══════════════════════════════════════
-    // HELPER FUNCTIONS
-    // ═══════════════════════════════════════
-
-    function showProductList(ctx) {
-        const db = require('../database');
-        const products = db.prepare(`
-      SELECT p.id as product_id, p.name, p.price, p.emoji, p.promotion, p.contact_only, p.is_active, p.category_id,
-        c.name as cat_name, c.emoji as cat_emoji,
-        (SELECT COUNT(*) FROM stock s WHERE s.product_id = p.id AND s.is_sold = 0) as stock_count
-      FROM products p
-      LEFT JOIN categories c ON p.category_id = c.id
-      ORDER BY p.category_id, p.id
-    `).all();
-
-        if (products.length === 0) return ctx.reply('❌ Chưa có sản phẩm nào.');
-
-        let text = `📦 <b>TẤT CẢ SẢN PHẨM</b>\n\n`;
-        let currentCat = null;
-
-        products.forEach((p) => {
-            if (p.category_id !== currentCat) {
-                currentCat = p.category_id;
-                text += `\n${p.cat_emoji || '📂'} <b>${p.cat_name || 'Chung'}</b>\n`;
-            }
-
-            const status = p.is_active ? '🟢' : '🔴';
-            text += `${status} <b>ID:${p.product_id}</b> | ${p.name}\n`;
-            text += `     💰 ${formatPrice(p.price)} | 📦 Kho: ${p.stock_count}`;
-            if (p.contact_only) text += ` | 💬 Liên hệ`;
-            if (p.promotion) text += ` | ${p.promotion}`;
-            text += `\n`;
-        });
-
-        text += `\n━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-        text += `💡 Dùng ID ở trên cho các lệnh:\n`;
-        text += `/addstock [ID] | /editprice [ID] [giá]\n`;
-        text += `/editname [ID] [tên] | /viewstock [ID]`;
-
-        ctx.replyWithHTML(text);
-    }
-
-    function showPending(ctx) {
-        const orders = orderService.getAllPending();
-        if (orders.length === 0) return ctx.reply('✅ Không có đơn hàng chờ!');
-
-        let text = `⏳ <b>ĐƠN CHỜ THANH TOÁN (${orders.length})</b>\n\n`;
-        orders.forEach((o) => {
-            text +=
-                `📌 <b>#${o.id}</b> | ${o.user_name}\n` +
-                `  📦 ${o.product_name} × ${o.quantity}\n` +
-                `  💰 ${formatPrice(o.total_price)}\n` +
-                `  🔑 <code>${o.payment_code}</code>\n` +
-                `  📅 ${o.created_at}\n` +
-                `  → <code>/confirm ${o.id}</code>\n\n`;
-        });
-
-        ctx.replyWithHTML(text);
-    }
-
-    function showStats(ctx) {
-        const stats = orderService.getStats();
-        const db = require('../database');
-        const todayOrders = db.prepare("SELECT COUNT(*) as c, COALESCE(SUM(total_price),0) as s FROM orders WHERE status='delivered' AND date(delivered_at)=date('now')").get();
-
-        ctx.replyWithHTML(
-            `📊 <b>THỐNG KÊ CHI TIẾT</b>\n\n` +
-            `<b>Tổng quan:</b>\n` +
-            `├ 👥 Users: ${stats.totalUsers}\n` +
-            `├ 📦 Đơn hoàn thành: ${stats.totalOrders}\n` +
-            `├ 💰 Tổng doanh thu: ${formatPrice(stats.totalRevenue)}\n` +
-            `├ ⏳ Đơn chờ: ${stats.pendingOrders}\n` +
-            `└ 🏪 Tồn kho: ${stats.totalStock}\n\n` +
-            `<b>Hôm nay:</b>\n` +
-            `├ 📦 Đơn: ${todayOrders.c}\n` +
-            `└ 💰 Doanh thu: ${formatPrice(todayOrders.s)}`
-        );
-    }
-
-    function showBank(ctx) {
-        ctx.replyWithHTML(
-            `🏦 <b>THÔNG TIN NGÂN HÀNG</b>\n\n` +
-            `├ Ngân hàng: <b>${config.BANK.NAME}</b>\n` +
-            `├ BIN: <code>${config.BANK.BIN}</code>\n` +
-            `├ Số TK: <code>${config.BANK.ACCOUNT}</code>\n` +
-            `└ Chủ TK: <b>${config.BANK.ACCOUNT_NAME}</b>\n\n` +
-            `✏️ Sửa: <code>/setbank BIN | SốTK | TênCTK | TênNH</code>`
-        );
-    }
-
-    async function sendBroadcast(ctx, bot, message) {
-        const db = require('../database');
-        const users = db.prepare('SELECT telegram_id FROM users').all();
-
-        let sent = 0;
-        let failed = 0;
-
-        await ctx.reply(`📢 Đang gửi tới ${users.length} users...`);
-
-        for (const user of users) {
-            try {
-                await bot.telegram.sendMessage(user.telegram_id, message, { parse_mode: 'HTML' });
-                sent++;
-            } catch (err) {
-                failed++;
-            }
-        }
-
-        ctx.replyWithHTML(`📢 <b>Đã gửi xong!</b>\n├ ✅ Thành công: ${sent}\n└ ❌ Thất bại: ${failed}`);
-    }
-};
-
-// Export setAdminState so other handlers can set admin state
-module.exports.setAdminState = (userId, state) => {
-    adminState[userId] = state;
-};
+                `Gõ /cancel để hủ
