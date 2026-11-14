@@ -68,7 +68,7 @@ function setupWebhook(bot) {
                 return;
             }
 
-            const order = orderService.getPendingBySuffix(suffix);
+            //const order = orderService.getPendingBySuffix(suffix);
             if (order) {
                 // Code xử lý đơn hàng của bạn...
             }
