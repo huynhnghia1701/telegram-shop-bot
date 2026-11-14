@@ -17,6 +17,7 @@ function extractPaymentSuffix(content) {
     // 3. Trả về 6 ký tự đó (VD: PAYAZOP2Y -> AZOP2Y)
     return match ? match[1] : null;
 }
+
 function setupWebhook(bot) {
     const app = express();
     app.use(express.json());
@@ -38,6 +39,7 @@ function setupWebhook(bot) {
                 return;
             }
 
+            // 1. Xử lý NẠP TIỀN (Topup)
             const topup = topupService.getPendingBySuffix(suffix);
             console.log('👉 Kết quả tìm Topup trong DB:', topup);
 
@@ -51,6 +53,7 @@ function setupWebhook(bot) {
                 topupService.markPaid(topup.id);
                 console.log('✅ Đã cộng tiền vào Database');
 
+                // Lấy thông tin user để báo số dư
                 const user = userService.get(topup.telegram_id);
                 
                 try {
@@ -65,13 +68,35 @@ function setupWebhook(bot) {
                 } catch (err) {
                     console.error('❌ Không gửi được thông báo nạp tiền:', err.message);
                 }
-                return;
+                return; // Dừng xử lý sau khi xong nạp tiền
             }
 
-            //const order = orderService.getPendingBySuffix(suffix);
+            // 2. Xử lý MUA HÀNG (Order) - Tạm khóa vì orderService chưa có hàm getPendingBySuffix
+            /* 
+            const order = orderService.getPendingBySuffix(suffix);
             if (order) {
-                // Code xử lý đơn hàng của bạn...
+                if (amount < order.total_price) {
+                    console.warn(`⚠️  Order #${order.id}: số tiền chuyển (${amount}) < giá trị đơn (${order.total_price})`);
+                    return;
+                }
+                const { deliverOrder } = require('./handlers/paymentConfirm');
+                const result = await deliverOrder(bot, order.id);
+
+                if (!result.success) {
+                    orderService.markPaid(order.id);
+                    try {
+                        await bot.telegram.sendMessage(
+                            config.ADMIN_ID,
+                            `💳 Đơn #${order.id} đã thanh toán qua SePay nhưng KHÔNG đủ hàng để giao tự động.\n` +
+                            `Vui lòng /confirm ${order.id} và giao thủ công.`
+                        );
+                    } catch (err) {
+                        console.error('Không gửi được thông báo cho admin:', err.message);
+                    }
+                }
+                return;
             }
+            */
 
             console.warn(`⚠️ Không tìm thấy đơn hàng/nạp tiền nào khớp mã: ${suffix}`);
         } catch (err) {
