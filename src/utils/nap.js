@@ -44,10 +44,10 @@ module.exports = (bot) => {
 
             // 4. Gửi dạng tin nhắn HTML (Kèm link QR) để tránh lỗi tải ảnh
             await ctx.replyWithHTML(caption);
-            
-        } catch (err) {
+            } catch (err) {
             console.error('❌ Lỗi tạo nạp tiền:', err.message);
-            ctx.reply('❌ Có lỗi xảy ra khi tạo yêu cầu nạp tiền. Vui lòng thử lại sau.');
+            // In thẳng lỗi ra cho bạn xem thay vì câu thông báo chung chung
+            ctx.reply(`❌ Lỗi tạo nạp tiền: ${err.message}`); 
         }
-    });
-};
+        } 
+        
