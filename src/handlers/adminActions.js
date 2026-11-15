@@ -29,7 +29,6 @@ module.exports = (bot) => {
             `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
             `👥 <b>QUẢN LÝ USER & SỐ DƯ:</b>\n` +
             `/users — Xem danh sách users\n` +
-            `/broadcast1 [ID] [nội dung] — Gửi thông báo 1 user\n` +
             `/setbalance [ID] [tiền] — Đặt lại số dư\n\n` +
             `📦 <b>QUẢN LÝ SẢN PHẨM:</b>\n` +
             `/listproduct — Xem tất cả sản phẩm\n` +
@@ -54,14 +53,16 @@ module.exports = (bot) => {
             `📊 <b>GOOGLE SHEET & KHÁC:</b>\n` +
             `/sync — 🔄 Đồng bộ sản phẩm từ Google Sheet\n` +
             `/stats — Thống kê chi tiết\n` +
-            `/broadcast — Gửi thông báo tới all users`,
+            `/broadcast — Gửi thông báo tới all users\n` +
+            `/broadcast1 [ID] [nội dung] — Gửi thông báo 1 user`,
             Markup.inlineKeyboard([
                 [Markup.button.callback('📦 Sản phẩm', 'adm_products'), Markup.button.callback('⏳ Đơn chờ', 'adm_pending')],
                 [Markup.button.callback('🔄 Sync Sheet', 'adm_sync'), Markup.button.callback('📊 Thống kê', 'adm_stats')],
             ])
         );
     });
-// /broadcast1 [user_id] [nội dung] - Gửi thông báo tới 1 user cụ thể
+
+    // Lệnh gửi thông báo cho 1 user
     bot.command('broadcast1', adminOnly, async (ctx) => {
         const args = ctx.message.text.split(' ');
         if (args.length < 3) {
@@ -73,12 +74,9 @@ module.exports = (bot) => {
         }
 
         const userId = parseInt(args[1]);
-        // Lấy toàn bộ nội dung phía sau ID (bỏ chữ /broadcast1 và ID)
         const msg = ctx.message.text.replace('/broadcast1', '').replace(args[1], '').trim();
 
-        if (isNaN(userId)) {
-            return ctx.reply('❌ User ID không hợp lệ.');
-        }
+        if (isNaN(userId)) return ctx.reply('❌ User ID không hợp lệ.');
 
         try {
             await bot.telegram.sendMessage(userId, msg, { parse_mode: 'HTML' });
@@ -87,6 +85,7 @@ module.exports = (bot) => {
             ctx.reply(`❌ Không thể gửi tin nhắn. Có thể user đã chặn bot hoặc ID sai.\nChi tiết lỗi: ${err.message}`);
         }
     });
+
     bot.action('adm_products', (ctx) => { if (isAdmin(ctx)) { ctx.answerCbQuery(); showProductList(ctx); } });
     bot.action('adm_pending', (ctx) => { if (isAdmin(ctx)) { ctx.answerCbQuery(); showPending(ctx); } });
     bot.action('adm_stats', (ctx) => { if (isAdmin(ctx)) { ctx.answerCbQuery(); showStats(ctx); } });
@@ -257,20 +256,15 @@ module.exports = (bot) => {
         ctx.replyWithHTML(text);
     });
 
-    // Lệnh /order1 mới được thêm vào đây
- // /order1 [user_id] - Xem lịch sử mua hàng của 1 user cụ thể
     bot.command('order1', adminOnly, async (ctx) => {
         const args = ctx.message.text.split(' ');
         if (args.length < 2) return ctx.replyWithHTML('Cách dùng: <code>/order1 [user_id]</code>\nVí dụ: <code>/order1 7979928097</code>');
 
         const userId = parseInt(args[1]);
         const db = require('../database');
-        
-        // Lấy thông tin user
         const user = db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(userId);
         if (!user) return ctx.reply('❌ Không tìm thấy user này.');
 
-        // Lấy danh sách đơn hàng của user
         const orders = db.prepare(`
             SELECT o.*, p.name as product_name
             FROM orders o
@@ -288,13 +282,11 @@ module.exports = (bot) => {
                    `Số dư hiện tại: ${formatPrice(user.balance)}\n\n` +
                    `━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
-        // Lặp qua từng đơn hàng để lấy tài khoản đã giao
         for (const order of orders) {
             text += `📦 <b>Đơn #${order.id}</b> | ${order.created_at}\n`;
             text += `Sản phẩm: ${order.product_name} × ${order.quantity}\n`;
             text += `Số tiền: ${formatPrice(order.total_price)}\n`;
             
-            // SỬA Ở ĐÂY: Đổi user_id thành sold_to cho khớp với database
             const accounts = db.prepare(`
                 SELECT data FROM stock 
                 WHERE product_id = ? AND sold_to = ? AND is_sold = 1 
@@ -311,6 +303,7 @@ module.exports = (bot) => {
 
         ctx.replyWithHTML(text);
     });
+
     bot.command('setbank', adminOnly, (ctx) => {
         ctx.replyWithHTML(`🏦 <b>THÔNG TIN NGÂN HÀNG</b>\n\n├ Ngân hàng: <b>${config.BANK.NAME}</b>\n├ BIN: <code>${config.BANK.BIN}</code>\n├ Số TK: <code>${config.BANK.ACCOUNT}</code>\n└ Chủ TK: <b>${config.BANK.ACCOUNT_NAME}</b>`);
     });
