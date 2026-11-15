@@ -27,6 +27,17 @@ const orderService = {
   },
 
   /**
+   * LẤY ĐƠN HÀNG ĐANG CHỜ THEO MÃ THANH TOÁN (Dùng cho Webhook)
+   */
+  getPendingBySuffix(suffix) {
+    return db.prepare(`
+      SELECT * FROM orders 
+      WHERE status = 'pending' AND payment_code LIKE ?
+      ORDER BY created_at DESC LIMIT 1
+    `).get(`%${suffix}%`);
+  },
+
+  /**
    * Get order by payment code
    */
   getByPaymentCode(code) {
@@ -71,9 +82,12 @@ const orderService = {
    */
   confirmAndDeliver(orderId) {
     const order = this.getById(orderId);
-   if (order.status !== 'pending' && order.status !== 'paid') {
-    return { success: false, error: 'Đơn hàng đã được xử lý' };
-}
+    if (!order) return { success: false, error: 'Đơn hàng không tồn tại' };
+    
+    // Cho phép giao hàng nếu đơn đang pending hoặc paid
+    if (order.status !== 'pending' && order.status !== 'paid') {
+      return { success: false, error: 'Đơn hàng đã được xử lý' };
+    }
 
     // Get available stock
     const stock = productService.getAvailableStock(order.product_id, order.quantity);
