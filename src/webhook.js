@@ -28,7 +28,7 @@ function setupWebhook(bot) {
 
             if (!suffix) return console.warn('⚠️ Không tìm thấy mã thanh toán:', content);
 
-            // 1. Xử lý NẠP TIỀN
+            // 1. NẠP TIỀN
             const topup = topupService.getPendingBySuffix(suffix);
             if (topup) {
                 if (amount < topup.amount) return console.warn('⚠️ Nạp thiếu tiền');
@@ -43,12 +43,14 @@ function setupWebhook(bot) {
                 return;
             }
 
-            // 2. Xử lý MUA HÀNG
+            // 2. MUA HÀNG
             const order = orderService.getPendingBySuffix(suffix);
             console.log('👉 Kết quả tìm Order:', order);
+            
             if (order) {
                 if (amount < order.total_price) return console.warn('⚠️ Chuyển thiếu tiền so với giá đơn');
                 
+                // GỌI HÀM DELIVERORDER ĐÃ ĐƯỢC EXPORT TỪ PAYMENTCONFIRM
                 const { deliverOrder } = require('./handlers/paymentConfirm');
                 const result = await deliverOrder(bot, order.id);
 
