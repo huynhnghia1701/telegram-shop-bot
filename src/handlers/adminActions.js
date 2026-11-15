@@ -29,6 +29,7 @@ module.exports = (bot) => {
             `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
             `👥 <b>QUẢN LÝ USER & SỐ DƯ:</b>\n` +
             `/users — Xem danh sách users\n` +
+            `/broadcast1 [ID] [nội dung] — Gửi thông báo 1 user\n` +
             `/setbalance [ID] [tiền] — Đặt lại số dư\n\n` +
             `📦 <b>QUẢN LÝ SẢN PHẨM:</b>\n` +
             `/listproduct — Xem tất cả sản phẩm\n` +
@@ -60,7 +61,32 @@ module.exports = (bot) => {
             ])
         );
     });
+// /broadcast1 [user_id] [nội dung] - Gửi thông báo tới 1 user cụ thể
+    bot.command('broadcast1', adminOnly, async (ctx) => {
+        const args = ctx.message.text.split(' ');
+        if (args.length < 3) {
+            return ctx.replyWithHTML(
+                `📢 <b>GỬI THÔNG BÁO CÁ NHÂN</b>\n\n` +
+                `Cách dùng: <code>/broadcast1 [user_id] [nội dung]</code>\n` +
+                `Ví dụ: <code>/broadcast1 7979928097 Chào bạn, đơn hàng của bạn đã được xử lý.</code>`
+            );
+        }
 
+        const userId = parseInt(args[1]);
+        // Lấy toàn bộ nội dung phía sau ID (bỏ chữ /broadcast1 và ID)
+        const msg = ctx.message.text.replace('/broadcast1', '').replace(args[1], '').trim();
+
+        if (isNaN(userId)) {
+            return ctx.reply('❌ User ID không hợp lệ.');
+        }
+
+        try {
+            await bot.telegram.sendMessage(userId, msg, { parse_mode: 'HTML' });
+            ctx.replyWithHTML(`✅ Đã gửi thông báo tới user <code>${userId}</code> thành công!`);
+        } catch (err) {
+            ctx.reply(`❌ Không thể gửi tin nhắn. Có thể user đã chặn bot hoặc ID sai.\nChi tiết lỗi: ${err.message}`);
+        }
+    });
     bot.action('adm_products', (ctx) => { if (isAdmin(ctx)) { ctx.answerCbQuery(); showProductList(ctx); } });
     bot.action('adm_pending', (ctx) => { if (isAdmin(ctx)) { ctx.answerCbQuery(); showPending(ctx); } });
     bot.action('adm_stats', (ctx) => { if (isAdmin(ctx)) { ctx.answerCbQuery(); showStats(ctx); } });
