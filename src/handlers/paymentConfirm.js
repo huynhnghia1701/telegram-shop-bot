@@ -8,7 +8,6 @@ const { Markup } = require('telegraf');
 const { formatPrice, postDeliveryKeyboard } = require('../utils/keyboard');
 
 module.exports = (bot) => {
-    // 1. Chọn số lượng
     bot.action(/^qty_(\d+)_(\d+)$/, async (ctx) => {
         try {
             const productId = parseInt(ctx.match[1]);
@@ -32,11 +31,8 @@ module.exports = (bot) => {
             buttons.push([Markup.button.callback('❌ Hủy', 'cancel_order')]);
 
             await ctx.replyWithHTML(
-                `📦 <b>${product.name}</b>\n` +
-                `📊 Số lượng: ${quantity}\n` +
-                `💵 Tổng tiền: <b>${formatPrice(totalPrice)}</b>\n\n` +
-                `💰 Số dư của bạn: <b>${formatPrice(user ? user.balance : 0)}</b>\n\n` +
-                `👇 Chọn phương thức thanh toán:`,
+                `📦 <b>${product.name}</b>\n📊 Số lượng: ${quantity}\n💵 Tổng tiền: <b>${formatPrice(totalPrice)}</b>\n\n` +
+                `💰 Số dư: <b>${formatPrice(user ? user.balance : 0)}</b>\n\n👇 Chọn phương thức thanh toán:`,
                 Markup.inlineKeyboard(buttons)
             );
         } catch (error) {
@@ -44,7 +40,6 @@ module.exports = (bot) => {
         }
     });
 
-    // 2. Thanh toán bằng số dư (Đã sửa lỗi font và lỗi vòng lặp)
     bot.action(/^pay_balance_(\d+)_(\d+)$/, async (ctx) => {
         try {
             const productId = parseInt(ctx.match[1]);
@@ -59,24 +54,17 @@ module.exports = (bot) => {
             const order = orderService.create(ctx.from.id, product.id, quantity, totalPrice, 'BALANCE_' + Date.now());
             
             await ctx.answerCbQuery('✅ Đã thanh toán!');
-            // Đã thêm parse_mode: 'HTML' để hết lỗi font
             await ctx.editMessageText(
-                `✅ <b>THANH TOÁN THÀNH CÔNG</b>\n\n` +
-                `💰 Đã trừ: <b>${formatPrice(totalPrice)}</b>\n` +
-                `💵 Còn lại: <b>${formatPrice(user.balance - totalPrice)}</b>\n\n` +
-                `📦 Đang giao hàng cho bạn...`,
+                `✅ <b>THANH TOÁN THÀNH CÔNG</b>\n\n💰 Đã trừ: <b>${formatPrice(totalPrice)}</b>\n💵 Còn lại: <b>${formatPrice(user.balance - totalPrice)}</b>\n\n📦 Đang giao hàng...`,
                 { parse_mode: 'HTML' }
             );
 
-            // Gọi hàm giao hàng (đã bỏ require vòng lặp)
             await deliverOrder(bot, order.id);
-
         } catch (error) {
             ctx.reply(`❌ Lỗi thanh toán: ${error.message}`);
         }
     });
 
-    // 3. Thanh toán qua ngân hàng
     bot.action(/^pay_bank_(\d+)_(\d+)$/, async (ctx) => {
         try {
             const productId = parseInt(ctx.match[1]);
@@ -94,12 +82,10 @@ module.exports = (bot) => {
         }
     });
 
-    // 4. Các nút hủy
     bot.action('cancel_order', (ctx) => { ctx.answerCbQuery('❌ Đã hủy'); ctx.editMessageText('❌ Đã hủy.'); });
     bot.action(/^cancel_order_(\d+)$/, (ctx) => { orderService.cancel(parseInt(ctx.match[1])); ctx.answerCbQuery('❌ Đã hủy'); ctx.reply('❌ Đã hủy đơn.'); });
 };
 
-// Hàm giao hàng
 async function deliverOrder(bot, orderId) {
     const result = orderService.confirmAndDeliver(orderId);
     if (!result.success) return result;
@@ -136,3 +122,6 @@ async function deliverOrder(bot, orderId) {
 
     return result;
 }
+
+// XUẤT HÀM DELIVERORDER ĐỂ WEBHOOK CÓ THỂ GỌI
+module.exports.deliverOrder = deliverOrder;
