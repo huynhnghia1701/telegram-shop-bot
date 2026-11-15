@@ -7,14 +7,8 @@ const { formatPrice } = require('./utils/keyboard');
 
 function extractPaymentSuffix(content) {
     if (!content) return null;
-    
-    // 1. Chuyển sang in hoa và xóa mọi dấu cách, dấu gạch ngang
     const cleanContent = content.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    
-    // 2. Tìm chữ PAY, theo sau là đúng 6 ký tự chữ/số
     const match = cleanContent.match(/PAY([A-Z0-9]{6})/);
-    
-    // 3. Trả về 6 ký tự đó (VD: PAYAZOP2Y -> AZOP2Y)
     return match ? match[1] : null;
 }
 
@@ -53,7 +47,6 @@ function setupWebhook(bot) {
                 topupService.markPaid(topup.id);
                 console.log('✅ Đã cộng tiền vào Database');
 
-                // Lấy thông tin user để báo số dư
                 const user = userService.get(topup.telegram_id);
                 
                 try {
@@ -68,17 +61,19 @@ function setupWebhook(bot) {
                 } catch (err) {
                     console.error('❌ Không gửi được thông báo nạp tiền:', err.message);
                 }
-                return; // Dừng xử lý sau khi xong nạp tiền
+                return;
             }
 
-            // 2. Xử lý MUA HÀNG (Order) - Tạm khóa vì orderService chưa có hàm getPendingBySuffix
-            /* 
+            // 2. Xử lý MUA HÀNG (Order) - Phần này đang bị thiếu hoặc lỗi
             const order = orderService.getPendingBySuffix(suffix);
+            console.log('👉 Kết quả tìm Order trong DB:', order);
+
             if (order) {
                 if (amount < order.total_price) {
-                    console.warn(`⚠️  Order #${order.id}: số tiền chuyển (${amount}) < giá trị đơn (${order.total_price})`);
+                    console.warn(`⚠️ Order #${order.id}: số tiền chuyển (${amount}) < giá trị đơn (${order.total_price})`);
                     return;
                 }
+
                 const { deliverOrder } = require('./handlers/paymentConfirm');
                 const result = await deliverOrder(bot, order.id);
 
@@ -94,13 +89,14 @@ function setupWebhook(bot) {
                         console.error('Không gửi được thông báo cho admin:', err.message);
                     }
                 }
+
+                console.log(`✅ Order #${order.id} đã được xác nhận thanh toán qua SePay`);
                 return;
             }
-            */
 
             console.warn(`⚠️ Không tìm thấy đơn hàng/nạp tiền nào khớp mã: ${suffix}`);
         } catch (err) {
-            console.error('❌ Lỗi xử lý transaction SePay:', err); 
+            console.error('❌ Lỗi xử lý transaction SePay:', err);
         }
     }
 
